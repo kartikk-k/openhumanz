@@ -33,6 +33,7 @@ import type {
   RunStartRequestInput,
   RunStatus,
   RunStep,
+  ToolCall,
 } from '../../../shared/runs';
 import {
   RunStartRequestSchema,
@@ -278,6 +279,31 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
     let config: WrittenMcpConfig | undefined;
     /** MCP call id -> our tool call row id. */
     const mcpCalls = new Map<string, string>();
+    /** Rows already claimed by an MCP call, so two calls cannot adopt one row. */
+    const adoptedRows = new Set<string>();
+
+    /**
+     * The open row the engine opened for this MCP tool, if any. The engine
+     * reports the namespaced name (`mcp__assistant__memory_search`); our server
+     * reports the bare one.
+     */
+    const adoptEngineToolCall = (
+      stepId: string,
+      mcpToolName: string,
+    ): ToolCall | undefined => {
+      const candidate = store
+        .listToolCalls(run.id)
+        .find(
+          (call) =>
+            call.stepId === stepId &&
+            !call.finishedAt &&
+            !adoptedRows.has(call.id) &&
+            (call.name === mcpToolName ||
+              call.name.endsWith(`__${mcpToolName}`)),
+        );
+      if (candidate) adoptedRows.add(candidate.id);
+      return candidate;
+    };
 
     /** Fold one engine event into step state. Returns true to stop the stream. */
     const handle = async (event: EngineEvent): Promise<boolean> => {
@@ -434,16 +460,28 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
         cwd,
         signal: controller.signal,
         onToolCall: (call) => {
-          const row = store.createToolCall({
-            runId: run.id,
-            stepId: step.id,
-            name: call.name,
-            arguments: call.arguments,
-            sideEffecting: call.sideEffecting,
-            status: call.approvalId ? 'awaiting_approval' : 'running',
-            approvalId: call.approvalId,
-            externalId: call.callId,
-          });
+          // The same physical call reaches us twice: the CLI announces
+          // `mcp__assistant__memory_search` on stdout, and our own server sees
+          // `memory_search` arrive over the socket. The two ids are minted
+          // independently and cannot be correlated, so the engine's row is
+          // adopted by name rather than duplicated — one call, one timeline row.
+          const adopted = adoptEngineToolCall(step.id, call.name);
+          const row = adopted
+            ? store.updateToolCall(adopted.id, {
+                sideEffecting: call.sideEffecting,
+                approvalId: call.approvalId ?? null,
+                status: call.approvalId ? 'awaiting_approval' : adopted.status,
+              })
+            : store.createToolCall({
+                runId: run.id,
+                stepId: step.id,
+                name: call.name,
+                arguments: call.arguments,
+                sideEffecting: call.sideEffecting,
+                status: call.approvalId ? 'awaiting_approval' : 'running',
+                approvalId: call.approvalId,
+                externalId: call.callId,
+              });
           mcpCalls.set(call.callId, row.id);
           void store
             .append(run.id, { type: 'tool.call', call: row })

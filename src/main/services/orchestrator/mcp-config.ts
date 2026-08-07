@@ -18,11 +18,21 @@ import type { WorkspacePaths } from '../../infra/paths';
 import { removeDir, writeJsonFileAtomic } from '../../infra/files';
 import type { McpStepScope } from './types';
 
-/** `.mcp.json`'s shape: one entry per server under `mcpServers`. */
+/**
+ * `.mcp.json`'s shape: one entry per server under `mcpServers`.
+ *
+ * `type: 'stdio'` is not decoration — the entry shape was confirmed against
+ * `claude mcp add-json` in a throwaway directory, and this is what it writes.
+ */
 export interface McpConfigFile {
   mcpServers: Record<
     string,
-    { command: string; args: string[]; env?: Record<string, string> }
+    {
+      type: 'stdio';
+      command: string;
+      args: string[];
+      env?: Record<string, string>;
+    }
   >;
 }
 
@@ -38,6 +48,7 @@ export function buildMcpConfig(scope: McpStepScope): McpConfigFile {
   return {
     mcpServers: {
       [scope.serverName]: {
+        type: 'stdio',
         command: scope.server.command,
         args: [...scope.server.args],
         ...(scope.server.env ? { env: { ...scope.server.env } } : {}),

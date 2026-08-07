@@ -44,6 +44,35 @@ Default gate is `allowAllApprovalGate`; `start()` warns if it's still installed 
 
 Verified: `.mcp.json` entry shape is `{"mcpServers":{"<name>":{"type":"stdio","command","args","env"}}}` (confirmed via `claude mcp add-json` in a throwaway dir; nothing written to the user's config).
 
+## runs + orchestrator
+
+```ts
+await registry.start();                          // the runs module builds its store here
+const orchestrator = createOrchestrator({ store: getRunStore(), engines, mcp, paths, events, logger });
+configureRuns({ launcher: orchestrator, sink }); // sink wraps webContents.send
+```
+
+- `getRunStore()` throws before `registry.start()` — **order is load-bearing**.
+- `sink.send(channel, payload, senderIds?)`; `undefined` senderIds = broadcast. Call `fanout().unsubscribeAll(senderId)` on window close.
+- `before-quit`: `orchestrator.shutdown()` → `mcp.stop()` → `killAllTracked()`.
+- The store emits `run:finished` on the bus when a run turns terminal — that is what approvals needs to expire run-scoped grants.
+- For `schedule`, inject `dispatch` → `orchestrator.startIfCondition({request, condition: () => true, reason})`. Schedule already ran its own gate; an explicit always-true condition makes that visible in review. **No code path starts a CLI invocation without a condition** — required by the type and by a runtime check.
+
+Timeline is `runs/<runId>/transcript.jsonl` where **line N == seq N** (that identity is what makes `sinceSeq` a cheap skip, and why appends are serialised per run). Raw engine payloads go to `runs/<runId>/engine.jsonl` so the legible file stays legible.
+
+### Three hazards when composing with the sibling services
+1. **Do not call `run.batches()`.** The engine queue is single-consumer and throws if you iterate both the run and its batches. The orchestrator iterates directly and batches at the IPC boundary instead — which is the boundary that actually matters.
+2. **Do not map the engine's `errorKind: 'budget'` onto `budget_exceeded`.** Engines collapse quota into `'budget'`; in orchestrator vocabulary `budget_exceeded` means "hit the ceiling *we* set". Mapping it through would tell a user who is out of plan capacity that their cost limit was too low. Pass the error text to `classifyFailure()` instead. Note there is no 429/rate-limit matching anywhere in `services/engines`, so a weekly-limit message alone falls through to `'unknown'`.
+3. **Do not route through `engines/run-events.ts`.** `toRunEvents()` mutates its own `ctx.seq`, competing with the store's allocator and silently breaking `runs:events`.
+
+**MCP gap:** `registerStep()` exposes no per-tool-call observer, so `onToolCall`/`onToolResult` are optional and the timeline is still complete without them (the CLI reports MCP calls in its own stream) — what's lost is `sideEffecting` and `approvalId` on the row. The seam that sees both start and end is an instrumenting proxy around the `McpToolSource.invokeTool` passed as `options.tools` (~a dozen lines). Because MCP `toolCallId` and the engine's tool id are minted independently, the observer **adopts the engine's open row by name** (`memory_write` ↔ `mcp__assistant__memory_write`) rather than creating a duplicate row.
+
+### Deferred shared/ gaps
+- **`Run` has no `failureKind`** — quota is the failure users hit first and the timeline must name it. Currently a `failure_kind` column mirrored into `metadata.failureKind`. Promote it.
+- `RunStep` has no `failureKind`/`metadata` (same column, via `store.stepFailureKind(id)`).
+- `RunStartRequest` has no `steps`/`plan`; an explicit decomposition travels in `metadata.plan`.
+- `AppEvents` has no tool-call event — **deliberate**, that traffic would swamp a cross-module bus.
+
 ## schedule
 
 1. `import scheduleModule from './modules/schedule'` → registry list. Nothing else required for it to run.
