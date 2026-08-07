@@ -44,6 +44,19 @@ Default gate is `allowAllApprovalGate`; `start()` warns if it's still installed 
 
 Verified: `.mcp.json` entry shape is `{"mcpServers":{"<name>":{"type":"stdio","command","args","env"}}}` (confirmed via `claude mcp add-json` in a throwaway dir; nothing written to the user's config).
 
+## tasks + goals
+
+Add both to the registry list. Forward `tasks:changed` / `goals:changed` to `IPC_PUSH.tasksChanged` / `goalsChanged` (a generic forwarder covers it). For per-turn goal injection call `goalStore.compact()` — pre-capped and measured.
+
+Tools: `tasks_list`, `tasks_get` (read); `tasks_create`, `tasks_update` (side-effecting); `goals_read` (read); `goals_propose_edit` (side-effecting). Destructive board ops (`clearBoard`/`removeMany`/`replaceBoard`) require `confirmDestructive: true` and are deliberately **not** on the MCP surface.
+
+`GOALS.md` carries a `<!-- next-id: gN -->` marker so ids are never recycled — without it, deleting `g2` hands the next goal `g2` and every earlier transcript silently re-points.
+
+### Deferred shared/ gaps
+- **`TaskStatus` vocabulary mismatch.** Shared: `inbox|todo|doing|blocked|done|cancelled`. Card lifecycle: `todo|in_progress|awaiting_approval|ready|blocked|done|rejected`. The module stores `cardStatus` as canonical and derives `status` on read. If shared adopts the richer enum the mapping collapses to identity.
+- **`Task` has no card fields and no board.** `objective`, `desiredOutcome`, `plan`, `acceptanceCriteria`, `assignedAgent`, `approvalMode`, `blockerReason`, `evidence`, `description`, `board`, `conversationId` are module-side extensions. A renderer typed only against `Task` cannot see them. `TaskQuery` likewise lacks `board`/`conversationId`/`assignedAgent`.
+- **`GoalWriteSchema` / `TaskUpdateSchema` are unsafe as patch schemas.** Both are `.partial()` over fields carrying `.default(...)`, and **zod v4 still applies those defaults** — `GoalWriteSchema.parse({title:'x'})` returns `description:''`, `status:'active'`, `order:0`, so parsing a patch blanks the description and reorders the goal. This was hit as a live bug. Fix shared to use a no-defaults patch variant; the module currently works around it locally.
+
 ## engines (services/engines)
 
 - `const engines = createEngineRegistry({ logger })`; call `engines.detectAll()` at startup and on the environment-status IPC channel.

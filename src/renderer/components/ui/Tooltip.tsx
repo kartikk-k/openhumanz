@@ -49,7 +49,11 @@ export function Tooltip({
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const id = useId();
 
-  if (!content) return <>{children}</>;
+  if (!content) {
+    return (
+      <span className={cn('relative inline-flex', className)}>{children}</span>
+    );
+  }
 
   const show = (immediate = false) => {
     if (timer.current) clearTimeout(timer.current);
