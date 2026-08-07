@@ -9,6 +9,10 @@
     "sourceMap": true,
     "moduleResolution": "node16",
     "esModuleInterop": true,
+    // The MCP SDK's CJS .d.ts type-imports an ESM-only package without a
+    // resolution-mode attribute, which trips TS1541 for any consumer under
+    // moduleResolution: node16. Our own sources still typecheck fully.
+    "skipLibCheck": true,
     "allowSyntheticDefaultImports": true,
     "resolveJsonModule": true,
     "allowJs": true,
