@@ -19,9 +19,13 @@ if (process.env.NODE_ENV === 'production') {
 
 const port = process.env.PORT || 1212;
 const manifest = path.resolve(webpackPaths.dllPath, 'renderer.json');
-const skipDLLs =
-  module.parent?.filename.includes('webpack.config.renderer.dev.dll') ||
-  module.parent?.filename.includes('webpack.config.eslint');
+// Derived from argv rather than `module.parent` so this config loads under any
+// runtime (bun has no CJS `module` here, which crashed the DLL build).
+const skipDLLs = process.argv.some(
+  (arg) =>
+    arg.includes('webpack.config.renderer.dev.dll') ||
+    arg.includes('webpack.config.eslint'),
+);
 
 /**
  * Warn if the DLL is not built
