@@ -1,0 +1,18 @@
+{
+  "name": "electron-react-template",
+  "version": "1.0.0",
+  "description": "Electron + React + TypeScript + Tailwind desktop app template",
+  "license": "MIT",
+  "author": {
+    "name": "Kartik Khorwal",
+    "email": "hellokartikk@gmail.com",
+    "url": "https://github.com/kartikk-k/electron-react-template"
+  },
+  "main": "./dist/main/main.js",
+  "scripts": {
+    "rebuild": "node -r ts-node/register ../../.erb/scripts/electron-rebuild.js",
+    "postinstall": "bun run rebuild && bun run link-modules",
+    "link-modules": "node -r ts-node/register ../../.erb/scripts/link-modules.ts"
+  },
+  "dependencies": {}
+}

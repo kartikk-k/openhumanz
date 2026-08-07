@@ -1,0 +1,56 @@
+name: Publish
+
+# Publishes installers to a GitHub release using the electron-builder
+# `build.publish` config in package.json. Runs on version tags (e.g. v1.0.0)
+# or when triggered manually, so forks never publish by accident.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Checkout git repo
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install and build
+        run: |
+          bun install
+          bun run postinstall
+          bun run build
+
+      - name: Publish release
+        env:
+          # Code signing certificate (macOS/Windows). Leave unset to build unsigned.
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          # NOTE: .erb/scripts/notarize.js notarizes via a local keychain
+          # profile named `notarization-profile`. That profile does not exist on
+          # a fresh runner, so either create it with `xcrun notarytool
+          # store-credentials` in an extra step, or remove build.mac.notarize
+          # from package.json to skip notarization in CI.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Used to upload the release assets to GitHub
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bunx electron-builder --publish always

@@ -1,0 +1,29 @@
+/*
+ * @NOTE: Prepend a `~` to css file paths that are in your node_modules
+ *        See https://github.com/webpack-contrib/sass-loader#imports
+ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Sane default surface colors, follows the OS color scheme */
+@layer base {
+  body {
+    @apply bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
+  }
+}
+
+/* Draggable window region */
+.draggable-region {
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+/* Make sure interactive elements inside draggable regions are still clickable */
+.draggable-region button,
+.draggable-region input,
+.draggable-region a,
+.draggable-region select {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}

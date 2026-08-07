@@ -1,0 +1,45 @@
+name: Test
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest, ubuntu-latest]
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      # Node is still required: electron-builder, webpack and the .erb
+      # build scripts run on Node, bun is only the package manager.
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      # Rebuilds native deps in release/app and builds the renderer DLL.
+      # Safe to run again even if `bun install` already triggered it.
+      - name: Post-install build steps
+        run: bun run postinstall
+
+      - name: Build, lint, typecheck and test
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          bun run package
+          bun run lint
+          bunx tsc --noEmit
+          bun run test
