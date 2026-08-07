@@ -194,8 +194,10 @@ export function summarizeUpdate(input: UpdateInput): string {
   if (input.desiredOutcome) changes.push('rewrite the desired outcome');
   if (input.description) changes.push('rewrite the description');
   if (input.notes) changes.push('update the notes');
-  if (input.tags) changes.push(`set tags to ${input.tags.join(', ') || 'none'}`);
-  if (input.dueAt) changes.push(`set the due date to ${input.dueAt.slice(0, 10)}`);
+  if (input.tags)
+    changes.push(`set tags to ${input.tags.join(', ') || 'none'}`);
+  if (input.dueAt)
+    changes.push(`set the due date to ${input.dueAt.slice(0, 10)}`);
   if (input.approvalMode) {
     changes.push(`set approval mode to ${input.approvalMode}`);
   }

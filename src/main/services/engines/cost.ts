@@ -98,7 +98,11 @@ export class CostMeter {
 
   private lastSessionId: string | undefined;
 
-  constructor(private limits: CostMeterLimits = {}) {}
+  private limits: CostMeterLimits;
+
+  constructor(limits: CostMeterLimits = {}) {
+    this.limits = limits;
+  }
 
   /** Pipe the whole event stream through this; non-result events are ignored. */
   observe(event: EngineEvent): void {
@@ -117,10 +121,11 @@ export class CostMeter {
    */
   addResult(
     usage: Usage,
-    byModel: ModelUsage[] = [],
+    perModel?: ModelUsage[],
     turns?: number,
     durationMs?: number,
   ): void {
+    const byModel = perModel ?? [];
     this.invocations += 1;
     this.turns += turns ?? usage.turns ?? 0;
     this.durationMs += durationMs ?? usage.durationMs ?? 0;

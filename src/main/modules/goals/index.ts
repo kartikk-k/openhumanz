@@ -14,9 +14,10 @@
  */
 import type { Deleted } from '../../../shared/ipc';
 import type { Goal } from '../../../shared/tasks';
-import { GoalQuerySchema, GoalWriteSchema } from '../../../shared/tasks';
+import { GoalQuerySchema } from '../../../shared/tasks';
 import { defineModule } from '../types';
 import type { IpcHandlerMap, ModuleContext } from '../types';
+import { GoalPatchSchema } from './schema';
 import { createGoalStore } from './store';
 import type { GoalStore } from './store';
 import { createGoalTools } from './tools';
@@ -55,7 +56,7 @@ const ipc: IpcHandlerMap = {
     requireStore().get(request.id),
 
   'goals:write': async (request): Promise<Goal> => {
-    const goal = await requireStore().write(GoalWriteSchema.parse(request));
+    const goal = await requireStore().write(GoalPatchSchema.parse(request));
     emitChanged([goal.id]);
     return goal;
   },

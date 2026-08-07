@@ -176,7 +176,8 @@ export function decodeMatchinfo(blob: unknown): MatchInfo | null {
   }
 
   const averageLength: number[] = [];
-  for (let c = 0; c < columns; c += 1, cursor += 1) averageLength.push(at(cursor));
+  for (let c = 0; c < columns; c += 1, cursor += 1)
+    averageLength.push(at(cursor));
   const length: number[] = [];
   for (let c = 0; c < columns; c += 1, cursor += 1) length.push(at(cursor));
 

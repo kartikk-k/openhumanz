@@ -157,7 +157,11 @@ export function rowToJob(row: JobRow): ScheduledJob {
     cron: row.cron,
     timezone: row.timezone || 'UTC',
     humanReadable: row.human_readable ?? '',
-    enabled: row.enabled !== 0,
+    // A stored condition that will not parse is a gate that is not there.
+    // Falling back to `always` would silently turn a gated job into an
+    // unconditional five-minute heartbeat — the exact failure ARCHITECTURE.md
+    // names. So the job reads as *off* until a human fixes it.
+    enabled: row.enabled !== 0 && condition.success,
     condition: condition.success ? condition.data : { kind: 'always' },
     prompt: row.prompt,
     engine: row.engine ?? undefined,
@@ -168,7 +172,9 @@ export function rowToJob(row: JobRow): ScheduledJob {
     lastRunAt: row.last_run_at ?? undefined,
     lastRunId: row.last_run_id ?? undefined,
     lastStatus: row.last_status ?? undefined,
-    lastSkipReason: row.last_skip_reason ?? undefined,
+    lastSkipReason: condition.success
+      ? (row.last_skip_reason ?? undefined)
+      : 'disabled: the stored condition could not be read',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     // The policy is surfaced on `metadata` because `ScheduledJobSchema` has no
@@ -217,10 +223,14 @@ const COLUMNS = {
   max_turns: (v: unknown) => (v === undefined || v === null ? null : Number(v)),
   max_cost_usd: (v: unknown) =>
     v === undefined || v === null ? null : Number(v),
-  next_run_at: (v: unknown) => (v === undefined || v === null ? null : String(v)),
-  last_run_at: (v: unknown) => (v === undefined || v === null ? null : String(v)),
-  last_run_id: (v: unknown) => (v === undefined || v === null ? null : String(v)),
-  last_status: (v: unknown) => (v === undefined || v === null ? null : String(v)),
+  next_run_at: (v: unknown) =>
+    v === undefined || v === null ? null : String(v),
+  last_run_at: (v: unknown) =>
+    v === undefined || v === null ? null : String(v),
+  last_run_id: (v: unknown) =>
+    v === undefined || v === null ? null : String(v),
+  last_status: (v: unknown) =>
+    v === undefined || v === null ? null : String(v),
   last_skip_reason: (v: unknown) =>
     v === undefined || v === null ? null : String(v),
   created_at: (v: unknown) => String(v),
@@ -237,6 +247,47 @@ const SELECT_JOB = `SELECT id, name, description, cron, timezone, human_readable
     max_turns, max_cost_usd, next_run_at, last_run_at, last_run_id, last_status,
     last_skip_reason, created_at, updated_at, metadata_json
   FROM schedule_jobs`;
+
+/* ------------------------------------------------------------------ */
+/* Run-history queries                                                 */
+/* ------------------------------------------------------------------ */
+
+const RUN_ORDER = 'ORDER BY started_at DESC, rowid DESC LIMIT ? OFFSET ?';
+
+/**
+ * The four filter combinations, each a complete statement.
+ *
+ * Written out rather than assembled so that no caller-supplied value can ever
+ * reach a SQL string — the filters pick a constant, the values are bound.
+ */
+const RUN_QUERIES = {
+  all: {
+    select: `SELECT * FROM schedule_runs ${RUN_ORDER}`,
+    count: 'SELECT COUNT(*) FROM schedule_runs',
+  },
+  job: {
+    select: `SELECT * FROM schedule_runs WHERE job_id = ? ${RUN_ORDER}`,
+    count: 'SELECT COUNT(*) FROM schedule_runs WHERE job_id = ?',
+  },
+  status: {
+    select: `SELECT * FROM schedule_runs WHERE status = ? ${RUN_ORDER}`,
+    count: 'SELECT COUNT(*) FROM schedule_runs WHERE status = ?',
+  },
+  both: {
+    select: `SELECT * FROM schedule_runs WHERE job_id = ? AND status = ? ${RUN_ORDER}`,
+    count: 'SELECT COUNT(*) FROM schedule_runs WHERE job_id = ? AND status = ?',
+  },
+} as const;
+
+function filterKey(
+  jobId?: string,
+  status?: string,
+): keyof typeof RUN_QUERIES {
+  if (jobId && status) return 'both';
+  if (jobId) return 'job';
+  if (status) return 'status';
+  return 'all';
+}
 
 /* ------------------------------------------------------------------ */
 /* Store                                                               */
@@ -265,7 +316,9 @@ export function createStore(db: Db): ScheduleStore {
   const selectAll = `${SELECT_JOB} ORDER BY created_at, id`;
   const selectOne = `${SELECT_JOB} WHERE id = ?`;
 
-  const encode = (patch: JobPatch): { columns: Column[]; values: SqlParam[] } => {
+  const encode = (
+    patch: JobPatch,
+  ): { columns: Column[]; values: SqlParam[] } => {
     const columns: Column[] = [];
     const values: SqlParam[] = [];
     for (const key of Object.keys(patch) as Column[]) {
@@ -312,7 +365,9 @@ export function createStore(db: Db): ScheduleStore {
     },
 
     deleteJob(id) {
-      const { changes } = db.run('DELETE FROM schedule_jobs WHERE id = ?', [id]);
+      const { changes } = db.run('DELETE FROM schedule_jobs WHERE id = ?', [
+        id,
+      ]);
       return changes > 0;
     },
 
@@ -359,37 +414,24 @@ export function createStore(db: Db): ScheduleStore {
 
     listRuns(query = {}) {
       const { jobId, status, limit = 50, offset = 0 } = query;
-      // Fixed SQL per filter combination rather than an assembled string.
-      const rows =
-        jobId && status
-          ? db.all(
-              `SELECT * FROM schedule_runs WHERE job_id = ? AND status = ?
-               ORDER BY started_at DESC, rowid DESC LIMIT ? OFFSET ?`,
-              [jobId, status, limit, offset],
-            )
-          : jobId
-            ? db.all(
-                `SELECT * FROM schedule_runs WHERE job_id = ?
-                 ORDER BY started_at DESC, rowid DESC LIMIT ? OFFSET ?`,
-                [jobId, limit, offset],
-              )
-            : status
-              ? db.all(
-                  `SELECT * FROM schedule_runs WHERE status = ?
-                   ORDER BY started_at DESC, rowid DESC LIMIT ? OFFSET ?`,
-                  [status, limit, offset],
-                )
-              : db.all(
-                  `SELECT * FROM schedule_runs
-                   ORDER BY started_at DESC, rowid DESC LIMIT ? OFFSET ?`,
-                  [limit, offset],
-                );
+      // One fixed statement per filter combination. The filters choose which
+      // constant to run; they never build one.
+      const rows = db.all(
+        RUN_QUERIES[filterKey(jobId, status)].select,
+        [
+          ...(jobId ? [jobId] : []),
+          ...(status ? [status] : []),
+          limit,
+          offset,
+        ],
+      );
 
       return rows.map((row) => ({
         id: String(row.id),
         jobId: String(row.job_id),
         trigger: String(row.trigger) as ScheduleTrigger,
-        scheduledFor: row.scheduled_for === null ? null : String(row.scheduled_for),
+        scheduledFor:
+          row.scheduled_for === null ? null : String(row.scheduled_for),
         startedAt: String(row.started_at),
         finishedAt: String(row.finished_at),
         durationMs: Number(row.duration_ms ?? 0),
@@ -405,23 +447,10 @@ export function createStore(db: Db): ScheduleStore {
 
     countRuns(query = {}) {
       const { jobId, status } = query;
-      const value =
-        jobId && status
-          ? db.pluck<number>(
-              'SELECT COUNT(*) FROM schedule_runs WHERE job_id = ? AND status = ?',
-              [jobId, status],
-            )
-          : jobId
-            ? db.pluck<number>(
-                'SELECT COUNT(*) FROM schedule_runs WHERE job_id = ?',
-                [jobId],
-              )
-            : status
-              ? db.pluck<number>(
-                  'SELECT COUNT(*) FROM schedule_runs WHERE status = ?',
-                  [status],
-                )
-              : db.pluck<number>('SELECT COUNT(*) FROM schedule_runs');
+      const value = db.pluck<number>(
+        RUN_QUERIES[filterKey(jobId, status)].count,
+        [...(jobId ? [jobId] : []), ...(status ? [status] : [])],
+      );
       return Number(value ?? 0);
     },
 

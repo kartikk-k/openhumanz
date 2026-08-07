@@ -32,7 +32,10 @@ function progress(done: number, total: number): string {
 }
 
 function planProgress(card: TaskCard): string {
-  return progress(card.plan.filter((step) => step.done).length, card.plan.length);
+  return progress(
+    card.plan.filter((step) => step.done).length,
+    card.plan.length,
+  );
 }
 
 function criteriaProgress(card: TaskCard): string {
@@ -170,7 +173,9 @@ export function renderCard(card: TaskCard): string {
   if (card.evidence.length > 0) {
     lines.push('', '**Evidence**');
     for (const item of card.evidence) {
-      lines.push(item.ref ? `- ${item.label} — ${item.ref}` : `- ${item.label}`);
+      lines.push(
+        item.ref ? `- ${item.label} — ${item.ref}` : `- ${item.label}`,
+      );
     }
   }
 

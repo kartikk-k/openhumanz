@@ -19,6 +19,15 @@ export interface QueueOverflow {
   dropped: number;
 }
 
+export interface AsyncEventQueueOptions<T> {
+  /** Buffered events before shedding starts. Default 50000. */
+  capacity?: number;
+  /** Returns true when an event may be dropped under pressure. */
+  droppable?: (value: T) => boolean;
+  /** Called once, the first time something is dropped. */
+  onOverflow?: (info: QueueOverflow) => void;
+}
+
 /**
  * A single-consumer async queue. Producers `push` synchronously; the consumer
  * awaits. `close()` ends the iteration cleanly — which is what makes a
@@ -35,12 +44,18 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
 
   private consumed = false;
 
-  constructor(
-    private readonly capacity = 50_000,
-    /** Returns true when an event may be dropped under pressure. */
-    private readonly droppable: (value: T) => boolean = () => false,
-    private readonly onOverflow?: (info: QueueOverflow) => void,
-  ) {}
+  private readonly capacity: number;
+
+  /** Returns true when an event may be dropped under pressure. */
+  private readonly droppable: (value: T) => boolean;
+
+  private readonly onOverflow?: (info: QueueOverflow) => void;
+
+  constructor(options: AsyncEventQueueOptions<T> = {}) {
+    this.capacity = options.capacity ?? 50_000;
+    this.droppable = options.droppable ?? (() => false);
+    this.onOverflow = options.onOverflow;
+  }
 
   get size(): number {
     return this.buffer.length;
@@ -102,7 +117,8 @@ export class AsyncEventQueue<T> implements AsyncIterable<T> {
         if (this.buffer.length > 0) {
           return { value: this.buffer.shift() as T, done: false };
         }
-        if (this.closed) return { value: undefined as unknown as T, done: true };
+        if (this.closed)
+          return { value: undefined as unknown as T, done: true };
         return new Promise<IteratorResult<T>>((resolve) => {
           this.waiting.push(resolve);
         });
@@ -164,17 +180,19 @@ export async function* batchEvents<T extends { type: string }>(
 
       let outcome: IteratorResult<T> | 'timeout';
       if (batch.length > 0 && options.flushIntervalMs > 0) {
+        const wait = Math.max(0, deadline - Date.now());
         let timer: ReturnType<typeof setTimeout> | undefined;
         const timeout = new Promise<'timeout'>((resolve) => {
-          timer = setTimeout(
-            () => resolve('timeout'),
-            Math.max(0, deadline - Date.now()),
-          );
+          timer = setTimeout(() => resolve('timeout'), wait);
           timer.unref?.();
         });
+        // Sequential by nature: this is a stream, and the next event cannot be
+        // requested before the current one has been dealt with.
+        // eslint-disable-next-line no-await-in-loop
         outcome = await Promise.race([pending, timeout]);
         if (timer) clearTimeout(timer);
       } else {
+        // eslint-disable-next-line no-await-in-loop
         outcome = await pending;
       }
 

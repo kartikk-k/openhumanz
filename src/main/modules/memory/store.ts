@@ -84,8 +84,9 @@ export const migrations: Migration[] = [
        );`,
       `CREATE INDEX IF NOT EXISTS memory_chunks_doc
          ON memory_chunks (doc_id, ordinal);`,
-      // FTS4, not FTS5: sql.js ships without the fts5 module and cannot load
-      // it (OMIT_LOAD_EXTENSION). unicode61 folds case and diacritics.
+      // FTS4, not FTS5. The shipped sql.js build has no fts5 module, and
+      // OMIT_LOAD_EXTENSION rules out loading one at runtime.
+      // unicode61 folds case and diacritics.
       `CREATE VIRTUAL TABLE IF NOT EXISTS memory_fts
          USING fts4(body, meta, tokenize=unicode61);`,
       `CREATE TABLE IF NOT EXISTS memory_state (
@@ -218,16 +219,20 @@ export function bodyText(heading: string, text: string): string {
 const DOC_COLUMNS =
   'id, path, title, tags, frontmatter, excerpt, size_bytes, content_hash, created_at, updated_at, indexed_at';
 
-export function getDocByPath(db: Db, relativePath: string): MemoryDoc | undefined {
-  const row = db.get(
-    `SELECT ${DOC_COLUMNS} FROM memory_docs WHERE path = ?`,
-    [relativePath],
-  );
+export function getDocByPath(
+  db: Db,
+  relativePath: string,
+): MemoryDoc | undefined {
+  const row = db.get(`SELECT ${DOC_COLUMNS} FROM memory_docs WHERE path = ?`, [
+    relativePath,
+  ]);
   return row ? rowToDoc(row) : undefined;
 }
 
 export function getDocById(db: Db, id: string): MemoryDoc | undefined {
-  const row = db.get(`SELECT ${DOC_COLUMNS} FROM memory_docs WHERE id = ?`, [id]);
+  const row = db.get(`SELECT ${DOC_COLUMNS} FROM memory_docs WHERE id = ?`, [
+    id,
+  ]);
   return row ? rowToDoc(row) : undefined;
 }
 
@@ -557,7 +562,10 @@ export function searchChunks(
   const hits: RankedHit[] = [];
   for (const row of rows) {
     const docTags = parseJson<string[]>(row.doc_tags, []);
-    if (wantedTags.length > 0 && !wantedTags.every((tag) => docTags.includes(tag))) {
+    if (
+      wantedTags.length > 0 &&
+      !wantedTags.every((tag) => docTags.includes(tag))
+    ) {
       continue;
     }
     const info = decodeMatchinfo(row.mi);
@@ -575,6 +583,8 @@ export function searchChunks(
     });
   }
 
-  hits.sort((a, b) => b.score - a.score || a.chunk.id.localeCompare(b.chunk.id));
+  hits.sort(
+    (a, b) => b.score - a.score || a.chunk.id.localeCompare(b.chunk.id),
+  );
   return hits.slice(0, options.limit);
 }

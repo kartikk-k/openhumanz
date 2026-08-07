@@ -384,7 +384,10 @@ function parseAssistant(
           parentToolUseId,
         });
       }
-    } else if (block.type === 'thinking' || block.type === 'redacted_thinking') {
+    } else if (
+      block.type === 'thinking' ||
+      block.type === 'redacted_thinking'
+    ) {
       const text =
         typeof block.thinking === 'string'
           ? block.thinking
@@ -396,7 +399,8 @@ function parseAssistant(
         sessionId: state.sessionId,
       });
     } else if (block.type === 'tool_use' || block.type === 'server_tool_use') {
-      const toolCallId = readString(block, 'id') ?? `tool_${state.toolNames.size}`;
+      const toolCallId =
+        readString(block, 'id') ?? `tool_${state.toolNames.size}`;
       const name = readString(block, 'name') ?? 'unknown';
       state.toolNames.set(toolCallId, name);
       events.push({

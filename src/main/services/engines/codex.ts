@@ -16,13 +16,13 @@
  * stream format, keep {@link EngineEvent} as the output, and nothing else in the
  * app changes. That is the point of the shared interface.
  */
+/* eslint-disable max-classes-per-file */
 import { nowIso } from '../../../shared/common';
 import { getLogger } from '../../infra/logger';
 import type { Logger } from '../../infra/logger';
 import { whichSync } from '../../infra/spawn';
 import { findApiKeyEnv } from './environment';
-import { AsyncEventQueue } from './stream';
-import { batchEvents, resolveBatchOptions } from './stream';
+import { AsyncEventQueue, batchEvents, resolveBatchOptions } from './stream';
 import type {
   BatchOptions,
   DetectOptions,
@@ -97,7 +97,10 @@ class UnavailableRun implements EngineRun {
   }
 
   batches(overrides?: BatchOptions): AsyncIterable<EngineEvent[]> {
-    return batchEvents(this, resolveBatchOptions(this.batchDefaults, overrides));
+    return batchEvents(
+      this,
+      resolveBatchOptions(this.batchDefaults, overrides),
+    );
   }
 
   async cancel(): Promise<void> {
@@ -139,7 +142,8 @@ export class CodexAdapter implements EngineAdapter {
       auth: {
         state: 'unknown',
         severity: 'warning',
-        message: 'Codex is not supported yet, so its auth state is not checked.',
+        message:
+          'Codex is not supported yet, so its auth state is not checked.',
         apiKeyEnvDetected: apiKeyEnv.detected,
         apiKeyEnvVars: apiKeyEnv.vars,
         apiKeyEnvStripped: false,

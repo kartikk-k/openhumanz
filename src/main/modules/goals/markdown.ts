@@ -51,6 +51,14 @@ export interface ParsedGoalsFile {
   assignedIds: string[];
   /** Lines we could not classify, for diagnostics. Never dropped from `raw`. */
   warnings: string[];
+  /**
+   * High-water mark from the `<!-- next-id: gN -->` marker.
+   *
+   * Without it, deleting `g2` and adding a goal would hand the new goal the id
+   * `g2`, and every earlier transcript that mentions `g2` would quietly start
+   * referring to something else. Ids are cheap; recycling them is not.
+   */
+  nextIdHint: number;
 }
 
 /* ------------------------------------------------------------------ */
@@ -60,11 +68,16 @@ export interface ParsedGoalsFile {
 const HEADING = /^(#{1,6})[ \t]+(.*)$/;
 const FENCE = /^[ \t]{0,3}(```|~~~)/;
 /** `[g2] Title`, `g2. Title`, `g2) Title`, `g2: Title`. */
-const HEADING_ID = /^[ \t]*(?:\[[ \t]*(g\d+)[ \t]*\]|(g\d+)[ \t]*[.):])[ \t]*(.*)$/i;
+const HEADING_ID =
+  /^[ \t]*(?:\[[ \t]*(g\d+)[ \t]*\]|(g\d+)[ \t]*[.):])[ \t]*(.*)$/i;
 /** An optional bullet, a key, a colon, a value. */
-const FIELD = /^[ \t]*([-*+][ \t]+)?([A-Za-z][A-Za-z0-9 _-]*?)[ \t]*:[ \t]*(.*)$/;
+const FIELD =
+  /^[ \t]*([-*+][ \t]+)?([A-Za-z][A-Za-z0-9 _-]*?)[ \t]*:[ \t]*(.*)$/;
 
-const KNOWN_FIELDS: Record<string, 'horizon' | 'status' | 'metric' | 'targetDate' | 'createdAt' | 'updatedAt'> = {
+const KNOWN_FIELDS: Record<
+  string,
+  'horizon' | 'status' | 'metric' | 'targetDate' | 'createdAt' | 'updatedAt'
+> = {
   horizon: 'horizon',
   timeframe: 'horizon',
   status: 'status',
@@ -142,7 +155,10 @@ function coerceEnum<T extends string>(
   value: string,
   allowed: readonly T[],
 ): T | null {
-  const needle = value.trim().toLowerCase().replace(/[\s_-]+/g, '');
+  const needle = value
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, '');
   const hit = allowed.find((option) => option === needle);
   return hit ?? null;
 }
@@ -228,14 +244,26 @@ function trimBlankEdges(lines: string[]): string[] {
   return lines.slice(start, end);
 }
 
-/** The next free id: one past the highest number already in the file. */
-export function nextGoalId(taken: Iterable<string>): string {
+/** `<!-- next-id: g7 -->`. Written into the preamble, stripped on parse. */
+const NEXT_ID_MARKER =
+  /^[ \t]*<!--[ \t]*next-id:[ \t]*g(\d+)[ \t]*-->[ \t]*$/im;
+
+/** Highest id number in use, or 0. */
+function highestId(taken: Iterable<string>): number {
   let max = 0;
   for (const id of taken) {
     const match = /^g(\d+)$/.exec(id);
     if (match) max = Math.max(max, Number(match[1]));
   }
-  return `g${max + 1}`;
+  return max;
+}
+
+/**
+ * The next free id: one past the highest number ever used, not one past the
+ * highest currently present. `hint` carries the high-water mark across deletes.
+ */
+export function nextGoalId(taken: Iterable<string>, hint = 0): string {
+  return `g${Math.max(highestId(taken) + 1, hint)}`;
 }
 
 export interface ParseOptions {
@@ -258,6 +286,16 @@ export function parseGoalsFile(
   const normalized = source.replace(/\r\n?/g, '\n');
   const { preamble, blocks } = splitBlocks(normalized);
 
+  const markerLine = preamble.findIndex((line) => NEXT_ID_MARKER.test(line));
+  const marker =
+    markerLine === -1 ? null : NEXT_ID_MARKER.exec(preamble[markerLine]);
+  const nextIdHint = marker ? Number(marker[1]) : 0;
+  // Stripped here and re-emitted by the renderer, so it cannot accumulate.
+  const preambleLines =
+    markerLine === -1
+      ? preamble
+      : [...preamble.slice(0, markerLine), ...preamble.slice(markerLine + 1)];
+
   const taken = new Set<string>();
   const assignedIds: string[] = [];
   const warnings: string[] = [];
@@ -270,7 +308,11 @@ export function parseGoalsFile(
     return { id, title };
   });
   for (const heading of headings) {
-    if (heading.id && GOAL_ID_PATTERN.test(heading.id) && !taken.has(heading.id)) {
+    if (
+      heading.id &&
+      GOAL_ID_PATTERN.test(heading.id) &&
+      !taken.has(heading.id)
+    ) {
       taken.add(heading.id);
     }
   }
@@ -288,7 +330,7 @@ export function parseGoalsFile(
       hadId = false;
     }
     if (!id) {
-      id = nextGoalId(taken);
+      id = nextGoalId(taken, nextIdHint);
       taken.add(id);
       assignedIds.push(id);
     }
@@ -322,10 +364,11 @@ export function parseGoalsFile(
   });
 
   return {
-    preamble: trimBlankEdges(preamble).join('\n'),
+    preamble: trimBlankEdges(preambleLines).join('\n'),
     goals,
     assignedIds,
     warnings,
+    nextIdHint,
   };
 }
 
@@ -358,7 +401,10 @@ function extraFieldsOf(goal: Goal): { key: string; value: string }[] {
   );
 }
 
-function asWritten(goal: Goal, field: 'horizon' | 'status'): string | undefined {
+function asWritten(
+  goal: Goal,
+  field: 'horizon' | 'status',
+): string | undefined {
   const value = goal.metadata[`${field}AsWritten`];
   return typeof value === 'string' ? value : undefined;
 }
@@ -373,6 +419,11 @@ export function renderGoal(goal: Goal, level = 2): string {
     fieldLine('metric', goal.metric),
     fieldLine('target', goal.targetDate),
     ...extraFieldsOf(goal).map((entry) => fieldLine(entry.key, entry.value)),
+    // Written because "how long have I been carrying this goal?" is one of the
+    // few things about a goal worth knowing that cannot be re-derived. `updated`
+    // is deliberately *not* written: the file's mtime already answers it, and a
+    // timestamp that changes on every write makes the file noisy in git.
+    fieldLine('created', goal.createdAt),
   ].filter((line): line is string => line !== null);
 
   if (fields.length > 0) lines.push('', ...fields);
@@ -419,8 +470,13 @@ export function renderGoalsFile(
       .trim();
   });
 
+  const next = Math.max(
+    highestId(parsed.goals.map((entry) => entry.goal.id)) + 1,
+    parsed.nextIdHint ?? 0,
+  );
+  const head = `${preamble || DEFAULT_PREAMBLE}\n\n<!-- next-id: g${next} -->`;
+
   const body = blocks.join('\n\n');
-  const head = preamble || DEFAULT_PREAMBLE;
   return body ? `${head}\n\n${body}\n` : `${head}\n`;
 }
 

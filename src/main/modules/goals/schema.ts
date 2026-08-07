@@ -6,7 +6,10 @@
  * into every turn — a hard item cap and a token budget — and the id scheme that
  * survives a human editing the file underneath us.
  */
-import { GoalWriteSchema } from '../../../shared/tasks';
+import { z } from 'zod';
+import { JsonObjectSchema } from '../../../shared/common';
+import { GoalHorizonSchema, GoalStatusSchema } from '../../../shared/tasks';
+import type { GoalWrite } from '../../../shared/tasks';
 
 /** The file, relative to the workspace root. Deliberately shouty and findable. */
 export const GOALS_FILENAME = 'GOALS.md';
@@ -48,5 +51,33 @@ export class GoalBudgetError extends Error {
   }
 }
 
-/** What a caller may write. The shared `GoalWrite`, re-exported by name. */
-export const GoalWriteInputSchema = GoalWriteSchema;
+/**
+ * What a caller may write — a patch, with **no defaults**.
+ *
+ * This exists because `GoalWriteSchema` in shared/ is built with `.partial()`
+ * over a schema whose fields carry `.default(...)`, and zod applies the default
+ * anyway: `GoalWriteSchema.parse({ title: 'x' })` comes back with
+ * `description: ''`, `status: 'active'` and `order: 0`. Parsing a patch with it
+ * therefore turns "leave the description alone" into "blank the description",
+ * and "leave it where it is" into "move it to the top".
+ *
+ * Same field names, same output type, no defaults. The assignment below is the
+ * compile-time proof that the two stay interchangeable.
+ */
+export const GoalPatchSchema = z.object({
+  id: z.string().min(1).optional(),
+  title: z.string().min(1),
+  description: z.string().optional(),
+  horizon: GoalHorizonSchema.optional(),
+  status: GoalStatusSchema.optional(),
+  metric: z.string().optional(),
+  targetDate: z.string().min(1).optional(),
+  order: z.number().int().optional(),
+  metadata: JsonObjectSchema.optional(),
+});
+export type GoalPatch = z.infer<typeof GoalPatchSchema>;
+
+/** A patch is a `GoalWrite`. If this stops compiling, shared/ changed shape. */
+export const GOAL_PATCH_IS_GOAL_WRITE: (patch: GoalPatch) => GoalWrite = (
+  patch,
+) => patch;

@@ -63,7 +63,12 @@ export {
   unsupportedFlagFromOutput,
 } from './claude-code';
 export type { ClaudeCodeAdapterOptions } from './claude-code';
-export { CODEX_BINARY, CODEX_ENGINE_ID, CodexAdapter, createCodexAdapter } from './codex';
+export {
+  CODEX_BINARY,
+  CODEX_ENGINE_ID,
+  CodexAdapter,
+  createCodexAdapter,
+} from './codex';
 export { runFinishedEvent, toRunEvents } from './run-events';
 export type {
   MappedRunEvents,

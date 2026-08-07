@@ -80,7 +80,10 @@ function compactJob(job: ScheduledJob): Record<string, unknown> {
 const CreateInput = z.object({
   name: z.string().min(1).describe('Short label shown in the jobs table.'),
   cron: CronField,
-  prompt: z.string().min(1).describe('The prompt handed to the engine when the job fires.'),
+  prompt: z
+    .string()
+    .min(1)
+    .describe('The prompt handed to the engine when the job fires.'),
   description: z.string().default(''),
   timezone: z
     .string()
@@ -94,13 +97,13 @@ const CreateInput = z.object({
   maxTurns: z.number().int().positive().optional(),
   maxCostUsd: z.number().positive().optional(),
 });
-type CreateInput = z.infer<typeof CreateInput>;
+type CreateArgs = z.infer<typeof CreateInput>;
 
 const ListInput = z.object({
   enabledOnly: z.boolean().default(false),
   limit: z.number().int().positive().max(100).default(50),
 });
-type ListInput = z.infer<typeof ListInput>;
+type ListArgs = z.infer<typeof ListInput>;
 
 const UpdateInput = z.object({
   id: z.string().min(1),
@@ -117,10 +120,10 @@ const UpdateInput = z.object({
   maxTurns: z.number().int().positive().optional(),
   maxCostUsd: z.number().positive().optional(),
 });
-type UpdateInput = z.infer<typeof UpdateInput>;
+type UpdateArgs = z.infer<typeof UpdateInput>;
 
 const DeleteInput = z.object({ id: z.string().min(1) });
-type DeleteInput = z.infer<typeof DeleteInput>;
+type DeleteArgs = z.infer<typeof DeleteInput>;
 
 const RunNowInput = z.object({
   id: z.string().min(1),
@@ -128,25 +131,25 @@ const RunNowInput = z.object({
     .boolean()
     .default(true)
     .describe(
-      'Run even when the job\'s condition says there is nothing to do. Set ' +
+      "Run even when the job's condition says there is nothing to do. Set " +
         'false to test whether the condition currently passes.',
     ),
 });
-type RunNowInput = z.infer<typeof RunNowInput>;
+type RunNowArgs = z.infer<typeof RunNowInput>;
 
 const HistoryInput = z.object({
   jobId: z.string().optional(),
   status: z.enum(['dispatched', 'skipped', 'error']).optional(),
   limit: z.number().int().positive().max(100).default(20),
 });
-type HistoryInput = z.infer<typeof HistoryInput>;
+type HistoryArgs = z.infer<typeof HistoryInput>;
 
 /* ------------------------------------------------------------------ */
 /* Tools                                                               */
 /* ------------------------------------------------------------------ */
 
 export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
-  const create = defineTool<CreateInput>({
+  const create = defineTool<CreateArgs>({
     name: 'schedule_create',
     description:
       'Create a scheduled job. Give a cron expression (no natural-language ' +
@@ -185,7 +188,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     },
   });
 
-  const list = defineTool<ListInput>({
+  const list = defineTool<ListArgs>({
     name: 'schedule_list',
     description:
       'List scheduled jobs with their schedule in English, next run time, ' +
@@ -205,7 +208,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     },
   });
 
-  const update = defineTool<UpdateInput>({
+  const update = defineTool<UpdateArgs>({
     name: 'schedule_update',
     description:
       'Change a scheduled job: its cron, condition, prompt, enabled state or ' +
@@ -215,10 +218,12 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     annotations: { title: 'Update scheduled job' },
     summarize: (input) => {
       const changes: string[] = [];
-      if (input.cron) changes.push(`run ${describeCron(input.cron, input.timezone)}`);
+      if (input.cron)
+        changes.push(`run ${describeCron(input.cron, input.timezone)}`);
       if (input.condition) {
         const parsed = ScheduleConditionSchema.safeParse(input.condition);
-        if (parsed.success) changes.push(`only ${describeCondition(parsed.data)}`);
+        if (parsed.success)
+          changes.push(`only ${describeCondition(parsed.data)}`);
       }
       if (input.enabled !== undefined) {
         changes.push(input.enabled ? 'turn it on' : 'turn it off');
@@ -226,7 +231,8 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
       if (input.missedRunPolicy) {
         changes.push(`missed runs: ${input.missedRunPolicy}`);
       }
-      if (input.prompt) changes.push(`new prompt "${truncate(input.prompt, 60)}"`);
+      if (input.prompt)
+        changes.push(`new prompt "${truncate(input.prompt, 60)}"`);
       if (input.name) changes.push(`rename to "${input.name}"`);
       const existing = scheduler.get(input.id);
       const label = existing ? `"${existing.name}"` : input.id;
@@ -258,7 +264,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     },
   });
 
-  const remove = defineTool<DeleteInput>({
+  const remove = defineTool<DeleteArgs>({
     name: 'schedule_delete',
     description: 'Delete a scheduled job and its run history.',
     inputSchema: DeleteInput,
@@ -273,7 +279,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     handler: async (input) => scheduler.remove(input.id),
   });
 
-  const runNow = defineTool<RunNowInput>({
+  const runNow = defineTool<RunNowArgs>({
     name: 'schedule_run_now',
     description:
       'Run a scheduled job immediately. By default the condition is ignored; ' +
@@ -291,7 +297,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
     handler: async (input) => scheduler.runNow(input),
   });
 
-  const history = defineTool<HistoryInput>({
+  const history = defineTool<HistoryArgs>({
     name: 'schedule_history',
     description:
       'Recent scheduled-job evaluations, including the ones that were skipped ' +

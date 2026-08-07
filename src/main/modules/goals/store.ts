@@ -13,7 +13,11 @@
  * a lost edit, and the atomic rename means never a truncated one.
  */
 import path from 'node:path';
-import { readTextFile, statOrNull, writeTextFileAtomic } from '../../infra/files';
+import {
+  readTextFile,
+  statOrNull,
+  writeTextFileAtomic,
+} from '../../infra/files';
 import { nowIso } from '../../../shared/common';
 import type { Goal, GoalQuery, GoalWrite } from '../../../shared/tasks';
 import {
@@ -129,7 +133,9 @@ export function createGoalStore(options: GoalStoreOptions): GoalStore {
 
     const raw = (await readTextFile(filePath)) ?? '';
     const parsed = parseGoalsFile(raw, {
-      defaultTimestamp: stats ? new Date(stats.mtimeMs).toISOString() : nowIso(),
+      defaultTimestamp: stats
+        ? new Date(stats.mtimeMs).toISOString()
+        : nowIso(),
     });
     cache = { key, parsed };
     return parsed;
@@ -209,9 +215,15 @@ export function createGoalStore(options: GoalStoreOptions): GoalStore {
         const id =
           input.id ??
           existing?.id ??
-          nextGoalId(parsed.goals.map((entry) => entry.goal.id));
+          nextGoalId(
+            parsed.goals.map((entry) => entry.goal.id),
+            parsed.nextIdHint,
+          );
 
-        const metadata = { ...(existing?.metadata ?? {}), ...(input.metadata ?? {}) };
+        const metadata = {
+          ...(existing?.metadata ?? {}),
+          ...(input.metadata ?? {}),
+        };
         // An explicit value replaces whatever the human wrote; keeping the old
         // spelling around would silently undo the edit on the next render.
         if (input.horizon !== undefined) delete metadata.horizonAsWritten;

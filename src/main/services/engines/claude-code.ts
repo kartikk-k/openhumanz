@@ -25,6 +25,9 @@
  *  - **No `--bare`, no `--dangerously-skip-permissions`**, and API-key
  *    environment variables are stripped unless the caller opts in.
  */
+/* Two classes on purpose: the adapter is a factory for the run, and splitting
+   a live process's state away from the code that spawns it buys nothing. */
+/* eslint-disable max-classes-per-file */
 import fs from 'node:fs';
 import path from 'node:path';
 import { uuid } from '../../infra/crypto';
@@ -34,7 +37,11 @@ import { runProcess, spawnProcess, whichSync } from '../../infra/spawn';
 import type { SpawnHandle, SpawnResult } from '../../infra/spawn';
 import { nowIso } from '../../../shared/common';
 import type { Usage } from '../../../shared/common';
-import { buildAuthStatus, engineEnvOverrides, findApiKeyEnv } from './environment';
+import {
+  buildAuthStatus,
+  engineEnvOverrides,
+  findApiKeyEnv,
+} from './environment';
 import type { RawAuthStatus } from './environment';
 import {
   classifyErrorText,
@@ -111,7 +118,8 @@ export function buildClaudeArgs(
   if (options.includePartialMessages) args.push('--include-partial-messages');
 
   if (options.model) args.push('--model', options.model);
-  if (options.fallbackModel) args.push('--fallback-model', options.fallbackModel);
+  if (options.fallbackModel)
+    args.push('--fallback-model', options.fallbackModel);
   if (options.effort) args.push('--effort', options.effort);
 
   if (context.mode === 'resume') {
@@ -151,7 +159,10 @@ export function buildClaudeArgs(
     args.push('--tools', '');
   } else if (options.builtinTools === 'default') {
     args.push('--tools', 'default');
-  } else if (Array.isArray(options.builtinTools) && options.builtinTools.length) {
+  } else if (
+    Array.isArray(options.builtinTools) &&
+    options.builtinTools.length
+  ) {
     args.push('--tools', options.builtinTools.join(','));
   }
 
@@ -285,13 +296,13 @@ class ClaudeCodeRun implements EngineRun {
   constructor(private readonly config: RunConfig) {
     const { options } = config;
     this.batchDefaults = resolveBatchOptions(options.batch);
-    this.queue = new AsyncEventQueue<EngineEvent>(
-      options.maxQueuedEvents ?? 50_000,
-      isDroppableEvent,
-      ({ dropped }) => {
+    this.queue = new AsyncEventQueue<EngineEvent>({
+      capacity: options.maxQueuedEvents ?? 50_000,
+      droppable: isDroppableEvent,
+      onOverflow: ({ dropped }) => {
         config.logger.warn('engine event queue overflowed', { dropped });
       },
-    );
+    });
     this.parser = createParserState(
       config.mode === 'resume' ? config.sessionId : undefined,
     );
@@ -366,7 +377,11 @@ class ClaudeCodeRun implements EngineRun {
     this.queue.push(event);
   }
 
-  private emitError(kind: EngineErrorKind, message: string, detail?: string): void {
+  private emitError(
+    kind: EngineErrorKind,
+    message: string,
+    detail?: string,
+  ): void {
     if (!this.firstError) this.firstError = { kind, message };
     this.emit({ at: nowIso(), type: 'error', kind, message, detail });
   }
@@ -423,7 +438,9 @@ class ClaudeCodeRun implements EngineRun {
   private preflight(): string | null {
     const { options } = this.config;
     if (!this.config.binaryPath) {
-      return this.config.binaryError ?? 'Claude Code CLI was not found on PATH.';
+      return (
+        this.config.binaryError ?? 'Claude Code CLI was not found on PATH.'
+      );
     }
     if (!Number.isFinite(options.maxTurns) || options.maxTurns <= 0) {
       return `maxTurns must be a positive number, got ${options.maxTurns}.`;
@@ -455,7 +472,10 @@ class ClaudeCodeRun implements EngineRun {
       return;
     }
     if (this.cancelled) {
-      this.emitError('cancelled', this.cancelReason ?? 'cancelled before start');
+      this.emitError(
+        'cancelled',
+        this.cancelReason ?? 'cancelled before start',
+      );
       this.finish('cancelled', null, null);
       return;
     }
@@ -474,7 +494,8 @@ class ClaudeCodeRun implements EngineRun {
     // A prompt that starts with `-` would be read as an option, so it goes down
     // stdin instead. Callers can force stdin for large prompts too.
     const promptVia: 'argv' | 'stdin' =
-      options.promptVia ?? (this.config.prompt.startsWith('-') ? 'stdin' : 'argv');
+      options.promptVia ??
+      (this.config.prompt.startsWith('-') ? 'stdin' : 'argv');
 
     let result: SpawnResult | null = null;
 
@@ -509,7 +530,8 @@ class ClaudeCodeRun implements EngineRun {
         type: 'engine.started',
         engineId: CLAUDE_CODE_ENGINE_ID,
         command: binaryPath,
-        args: promptVia === 'argv' ? redactPrompt(args, this.config.prompt) : args,
+        args:
+          promptVia === 'argv' ? redactPrompt(args, this.config.prompt) : args,
         cwd: options.cwd,
         attempt,
       });
@@ -533,6 +555,7 @@ class ClaudeCodeRun implements EngineRun {
 
       if (this.cancelled) {
         // cancel() arrived between the check above and the spawn returning.
+        // eslint-disable-next-line no-await-in-loop
         await this.spawnHandle.kill();
       }
 
@@ -814,12 +837,12 @@ export class ClaudeCodeAdapter implements EngineAdapter {
     }
 
     const rawAuth = auth.code === 0 ? parseAuthJson(auth.stdout) : undefined;
-    const authProbeError =
-      auth.code === 0 && !rawAuth
-        ? 'unrecognised output from `claude auth status --json`'
-        : auth.code !== 0
-          ? `\`claude auth status\` exited ${auth.code}`
-          : undefined;
+    let authProbeError: string | undefined;
+    if (auth.code !== 0) {
+      authProbeError = `\`claude auth status\` exited ${auth.code}`;
+    } else if (!rawAuth) {
+      authProbeError = 'unrecognised output from `claude auth status --json`';
+    }
 
     const detection: EngineDetection = {
       info: {
@@ -860,7 +883,11 @@ export class ClaudeCodeAdapter implements EngineAdapter {
     return this.start(prompt, options, 'run', options.sessionId);
   }
 
-  resume(sessionId: string, prompt: string, options: EngineRunOptions): EngineRun {
+  resume(
+    sessionId: string,
+    prompt: string,
+    options: EngineRunOptions,
+  ): EngineRun {
     return this.start(prompt, options, 'resume', sessionId);
   }
 

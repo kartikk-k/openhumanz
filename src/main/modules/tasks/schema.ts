@@ -27,7 +27,6 @@ import {
   TASK_STATUSES,
   TaskPrioritySchema,
   TaskSchema,
-  TaskStatusSchema,
 } from '../../../shared/tasks';
 import type { Task, TaskStatus } from '../../../shared/tasks';
 import { IdSchema, IsoDateTimeSchema } from '../../../shared/common';

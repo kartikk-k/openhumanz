@@ -50,7 +50,11 @@ function optionalText(value: unknown): string | undefined {
  * Parse a JSON column. A malformed blob yields the fallback rather than
  * throwing — one bad row must not make the whole board unreadable.
  */
-function jsonColumn<T>(value: unknown, schema: { parse(v: unknown): T }, fallback: T[]): T[] {
+function jsonColumn<T>(
+  value: unknown,
+  schema: { parse(v: unknown): T },
+  fallback: T[],
+): T[] {
   if (typeof value !== 'string' || !value.trim()) return fallback;
   let parsed: unknown;
   try {
@@ -88,7 +92,8 @@ function enumColumn<T extends string>(
   allowed: readonly T[],
   fallback: T,
 ): T {
-  return typeof value === 'string' && (allowed as readonly string[]).includes(value)
+  return typeof value === 'string' &&
+    (allowed as readonly string[]).includes(value)
     ? (value as T)
     : fallback;
 }
@@ -258,7 +263,7 @@ export interface TaskStore {
 /** Fields whose emptiness means "unset the column". */
 function nullable(value: string | undefined): string | null {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  return trimmed || null;
 }
 
 export function createTaskStore(db: Db): TaskStore {
@@ -267,7 +272,7 @@ export function createTaskStore(db: Db): TaskStore {
 
   const nextOrder = (board: BoardRef): number => {
     const max = db.pluck<number>(
-      'SELECT COALESCE(MAX(sort_order), -1) FROM tasks_card WHERE board = ? AND COALESCE(conversation_id, \'\') = ?',
+      "SELECT COALESCE(MAX(sort_order), -1) FROM tasks_card WHERE board = ? AND COALESCE(conversation_id, '') = ?",
       [board.board, board.conversationId ?? ''],
     );
     return Number(max ?? -1) + 1;
@@ -377,7 +382,8 @@ export function createTaskStore(db: Db): TaskStore {
         };
 
         if (input.title !== undefined) push('title', input.title);
-        if (input.description !== undefined) push('description', input.description);
+        if (input.description !== undefined)
+          push('description', input.description);
         if (input.notes !== undefined) push('notes', input.notes);
         if (input.priority !== undefined) push('priority', input.priority);
         if (input.objective !== undefined) push('objective', input.objective);
@@ -423,7 +429,9 @@ export function createTaskStore(db: Db): TaskStore {
 
         if (input.board !== undefined || input.conversationId !== undefined) {
           const moved = resolveBoard({
-            board: input.board ?? (input.conversationId ? 'conversation' : undefined),
+            board:
+              input.board ??
+              (input.conversationId ? 'conversation' : undefined),
             conversationId: input.conversationId,
           });
           push('board', moved.board);
@@ -448,10 +456,7 @@ export function createTaskStore(db: Db): TaskStore {
 
         push('updated_at', at);
         params.push(input.id);
-        db.run(
-          `UPDATE tasks_card SET ${sets.join(', ')} WHERE id = ?`,
-          params,
-        );
+        db.run(`UPDATE tasks_card SET ${sets.join(', ')} WHERE id = ?`, params);
 
         const updated = store.get(input.id);
         if (!updated) throw new Error(`No such task: ${input.id}`);
@@ -466,8 +471,7 @@ export function createTaskStore(db: Db): TaskStore {
 
     boardCards(board, includeCompleted) {
       const params: SqlParam[] = [board.board, board.conversationId ?? ''];
-      let clause =
-        "WHERE board = ? AND COALESCE(conversation_id, '') = ?";
+      let clause = "WHERE board = ? AND COALESCE(conversation_id, '') = ?";
       if (!includeCompleted) {
         clause += ` AND card_status NOT IN (${TERMINAL_CARD_STATUSES.map(() => '?').join(', ')})`;
         params.push(...TERMINAL_CARD_STATUSES);

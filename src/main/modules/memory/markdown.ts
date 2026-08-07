@@ -98,7 +98,8 @@ export function parseFrontmatter(lines: string[]): JsonObject {
   let pendingList: unknown[] | null = null;
 
   const flush = (): void => {
-    if (pendingKey !== null && pendingList !== null) out[pendingKey] = pendingList;
+    if (pendingKey !== null && pendingList !== null)
+      out[pendingKey] = pendingList;
     pendingKey = null;
     pendingList = null;
   };
@@ -134,12 +135,14 @@ export function parseFrontmatter(lines: string[]): JsonObject {
   return out;
 }
 
+function toTagList(value: unknown): unknown[] {
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'string') return value.split(/[,\s]+/);
+  return [];
+}
+
 function normalizeTags(value: unknown): string[] {
-  const raw: unknown[] = Array.isArray(value)
-    ? value
-    : typeof value === 'string'
-      ? value.split(/[,\s]+/)
-      : [];
+  const raw = toTagList(value);
   const seen = new Set<string>();
   const out: string[] = [];
   for (const entry of raw) {
@@ -356,7 +359,10 @@ export function chunkMarkdown(
   const emit = (): void => {
     if (!pending) return;
     const kept = pending.lines;
-    const text = kept.map((entry) => entry.text).join('\n').trim();
+    const text = kept
+      .map((entry) => entry.text)
+      .join('\n')
+      .trim();
     if (text) {
       chunks.push({
         heading: pending.heading,
@@ -378,7 +384,11 @@ export function chunkMarkdown(
       emit();
     }
     if (!pending) {
-      pending = { heading: block.heading, lines: [...block.lines], chars: block.chars };
+      pending = {
+        heading: block.heading,
+        lines: [...block.lines],
+        chars: block.chars,
+      };
       continue;
     }
     // Blank separator line keeps paragraph boundaries readable in a snippet.

@@ -19,7 +19,12 @@
  * here as control flow — it is archived to a file and, on failure only, quoted
  * into an error message.
  */
-import type { IsoDateTime, JsonObject, LogLevel, Usage } from '../../../shared/common';
+import type {
+  IsoDateTime,
+  JsonObject,
+  LogLevel,
+  Usage,
+} from '../../../shared/common';
 import type { EngineInfo } from '../../../shared/engines';
 import type { Logger } from '../../infra/logger';
 
@@ -217,12 +222,7 @@ export const DEFAULT_BATCH: Required<BatchOptions> = {
 /* ------------------------------------------------------------------ */
 
 export type EnginePermissionMode =
-  | 'acceptEdits'
-  | 'auto'
-  | 'bypassPermissions'
-  | 'manual'
-  | 'dontAsk'
-  | 'plan';
+  'acceptEdits' | 'auto' | 'bypassPermissions' | 'manual' | 'dontAsk' | 'plan';
 
 export interface EngineRunOptions {
   /* -- required circuit breakers -------------------------------------- */
@@ -397,10 +397,7 @@ export interface EngineRunSummary {
  * surfaced as its own severity, not folded into a warning list.
  */
 export type EngineAuthState =
-  | 'subscription'
-  | 'api-key'
-  | 'logged-out'
-  | 'unknown';
+  'subscription' | 'api-key' | 'logged-out' | 'unknown';
 
 export interface EngineAuthStatus {
   state: EngineAuthState;
@@ -469,5 +466,9 @@ export interface EngineAdapter {
   detect(options?: DetectOptions): Promise<EngineDetection>;
   run(prompt: string, options: EngineRunOptions): EngineRun;
   /** Continue an existing session. Same options surface as {@link run}. */
-  resume(sessionId: string, prompt: string, options: EngineRunOptions): EngineRun;
+  resume(
+    sessionId: string,
+    prompt: string,
+    options: EngineRunOptions,
+  ): EngineRun;
 }

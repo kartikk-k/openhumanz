@@ -20,12 +20,15 @@ export const SNIPPET_LIMIT = 240;
 export const GET_DEFAULT_CHARS = 4000;
 export const GET_MAX_CHARS = 20000;
 
-function truncate(input: string, limit: number): { text: string; truncated: boolean } {
+function truncate(
+  input: string,
+  limit: number,
+): { text: string; truncated: boolean } {
   if (input.length <= limit) return { text: input, truncated: false };
   return { text: `${input.slice(0, limit)}…`, truncated: true };
 }
 
-const SearchInput = z.object({
+const SearchInputSchema = z.object({
   query: z
     .string()
     .min(1)
@@ -49,9 +52,9 @@ const SearchInput = z.object({
     .optional()
     .describe('Only documents carrying every one of these front-matter tags.'),
 });
-type SearchInput = z.infer<typeof SearchInput>;
+type SearchInput = z.infer<typeof SearchInputSchema>;
 
-const GetInput = z.object({
+const GetInputSchema = z.object({
   id: z
     .string()
     .optional()
@@ -68,9 +71,9 @@ const GetInput = z.object({
     .default(GET_DEFAULT_CHARS)
     .describe('Truncate the body at this many characters.'),
 });
-type GetInput = z.infer<typeof GetInput>;
+type GetInput = z.infer<typeof GetInputSchema>;
 
-const WriteInput = z.object({
+const WriteInputSchema = z.object({
   path: z
     .string()
     .min(1)
@@ -81,7 +84,7 @@ const WriteInput = z.object({
     .default(false)
     .describe('Add to the end of the note instead of replacing it.'),
 });
-type WriteInput = z.infer<typeof WriteInput>;
+type WriteInput = z.infer<typeof WriteInputSchema>;
 
 /**
  * Build the tool list against a live indexer.
@@ -95,8 +98,8 @@ export function createMemoryTools(
   const search = defineTool<SearchInput>({
     name: 'memory_search',
     description:
-      'Full-text search the memory vault (the user\'s Markdown notes). Returns short ranked snippets with the file and line range each came from. Use memory_get with a returned id to read the whole note.',
-    inputSchema: SearchInput,
+      "Full-text search the memory vault (the user's Markdown notes). Returns short ranked snippets with the file and line range each came from. Use memory_get with a returned id to read the whole note.",
+    inputSchema: SearchInputSchema,
     sideEffecting: false,
     annotations: { title: 'Search memory', readOnlyHint: true },
     handler: (input) => {
@@ -124,7 +127,7 @@ export function createMemoryTools(
     name: 'memory_get',
     description:
       'Read one memory note by id (from a search hit) or by vault-relative path. Returns the Markdown as it is on disk, truncated to maxChars.',
-    inputSchema: GetInput,
+    inputSchema: GetInputSchema,
     sideEffecting: false,
     annotations: { title: 'Read a memory note', readOnlyHint: true },
     handler: async (input) => {
@@ -152,7 +155,7 @@ export function createMemoryTools(
     name: 'memory_store',
     description:
       'Save something to the memory vault as a Markdown file the user can open and edit. Use append to add to an existing note rather than overwrite it. Prefer a stable, descriptive path such as "people/ana.md" or "projects/relocation.md".',
-    inputSchema: WriteInput,
+    inputSchema: WriteInputSchema,
     sideEffecting: true,
     annotations: { title: 'Write a memory note', destructiveHint: true },
     summarize: (input) => {

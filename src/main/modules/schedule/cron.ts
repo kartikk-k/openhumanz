@@ -48,9 +48,7 @@ export function nextRunAfter(
     });
     return interval.next().toDate().getTime();
   } catch (cause) {
-    throw new CronError(
-      cause instanceof Error ? cause.message : String(cause),
-    );
+    throw new CronError(cause instanceof Error ? cause.message : String(cause));
   }
 }
 
@@ -81,9 +79,7 @@ export function nextRuns(
     }
     return out;
   } catch (cause) {
-    throw new CronError(
-      cause instanceof Error ? cause.message : String(cause),
-    );
+    throw new CronError(cause instanceof Error ? cause.message : String(cause));
   }
 }
 
@@ -163,5 +159,6 @@ export function validateCron(
 /** Throwing form, for the write paths. */
 export function assertValidCron(cron: string, timezone: string): void {
   const result = validateCron(cron, timezone);
-  if (!result.valid) throw new CronError(result.error ?? 'Invalid cron expression');
+  if (!result.valid)
+    throw new CronError(result.error ?? 'Invalid cron expression');
 }

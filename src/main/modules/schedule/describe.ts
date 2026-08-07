@@ -122,7 +122,11 @@ function covers(values: number[], min: number, max: number): boolean {
  * end of its domain, or null. `*\/15` on minutes -> 15. `15,45` -> null (evenly
  * spaced but does not start at 0, so "every 30 minutes" would be a lie).
  */
-function uniformStep(values: number[], min: number, max: number): number | null {
+function uniformStep(
+  values: number[],
+  min: number,
+  max: number,
+): number | null {
   if (values.length < 2 || values[0] !== min) return null;
   const step = values[1] - values[0];
   if (step <= 0) return null;
@@ -223,7 +227,9 @@ export function describeCronDetailed(
 
   let datePart: string;
   if (domAll && dowAll) {
-    datePart = monthsAll ? 'every day' : `every day in ${describeMonths(month, false)}`;
+    datePart = monthsAll
+      ? 'every day'
+      : `every day in ${describeMonths(month, false)}`;
   } else if (domAll && !dowAll) {
     const days = describeWeekdays(dow);
     if (!days) return punt;
@@ -287,9 +293,7 @@ export function describeCronDetailed(
   if (hour.length * minute.length > 4) return punt;
   const times: string[] = [];
   for (const h of hour) for (const m of minute) times.push(formatTime(h, m));
-  times.sort(
-    (a, b) => hourMinuteKey(a) - hourMinuteKey(b),
-  );
+  times.sort((a, b) => hourMinuteKey(a) - hourMinuteKey(b));
   return finish(`${datePart} at ${joinList(times)}`, timezone);
 }
 

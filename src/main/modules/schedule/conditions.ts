@@ -120,7 +120,8 @@ export function zonedHourAndWeekday(
     for (const part of parts) {
       if (part.type === 'hour') hour = Number(part.value);
       else if (part.type === 'minute') minute = Number(part.value);
-      else if (part.type === 'weekday') weekday = WEEKDAY_INDEX[part.value] ?? -1;
+      else if (part.type === 'weekday')
+        weekday = WEEKDAY_INDEX[part.value] ?? -1;
     }
     if (hour < 0 || minute < 0 || weekday < 0) return null;
     return { hour, minute, weekday };
@@ -184,13 +185,16 @@ export async function evaluateCondition(
             reason: `no reader for counter "${condition.source}"`,
           };
         }
-        const current = await ctx.readCounter(condition.source);
-        if (current === undefined || !Number.isFinite(current)) {
+        const raw = await ctx.readCounter(condition.source);
+        if (raw === undefined || !Number.isFinite(raw)) {
           return {
             passed: false,
             reason: `no reading for counter "${condition.source}"`,
           };
         }
+        // `lastSeenValue` is an int in the shared schema; a float here would
+        // make the stored condition unparseable on the way back out.
+        const current = Math.trunc(raw);
         const seen = condition.lastSeenValue;
         if (seen === undefined) {
           return {
@@ -272,7 +276,9 @@ export async function seedCondition(
 ): Promise<ScheduleCondition> {
   try {
     if (condition.kind === 'file-changed') {
-      const current = await mtimeMs(resolveWatchedPath(ctx.paths, condition.path));
+      const current = await mtimeMs(
+        resolveWatchedPath(ctx.paths, condition.path),
+      );
       return current === null
         ? condition
         : { ...condition, lastSeenMtimeMs: current };
@@ -281,7 +287,7 @@ export async function seedCondition(
       const current = await ctx.readCounter(condition.source);
       return current === undefined || !Number.isFinite(current)
         ? condition
-        : { ...condition, lastSeenValue: current };
+        : { ...condition, lastSeenValue: Math.trunc(current) };
     }
   } catch {
     /* seeding is best effort; an unseeded condition skips its first tick */
@@ -303,9 +309,7 @@ export function describeCondition(condition: ScheduleCondition): string {
         condition.weekdays.length === 0
           ? 'any day'
           : condition.weekdays
-              .map(
-                (d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d],
-              )
+              .map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d])
               .join(', ');
       return `between ${String(condition.startHour).padStart(2, '0')}:00 and ${String(condition.endHour).padStart(2, '0')}:00 on ${days}`;
     }

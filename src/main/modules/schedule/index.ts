@@ -29,7 +29,11 @@
  */
 import { defineModule, type AppModule, type ModuleContext } from '../types';
 import { createIpcHandlers } from './ipc';
-import { createScheduler, type Scheduler, type SchedulerOptions } from './scheduler';
+import {
+  createScheduler,
+  type Scheduler,
+  type SchedulerOptions,
+} from './scheduler';
 import { migrations } from './store';
 import { createTools } from './tools';
 
@@ -83,12 +87,7 @@ export {
   describeCronDetailed,
   type CronDescription,
 } from './describe';
-export {
-  validateCron,
-  nextRunIsoAfter,
-  nextRuns,
-  CronError,
-} from './cron';
+export { validateCron, nextRunIsoAfter, nextRuns, CronError } from './cron';
 export {
   describeCondition,
   evaluateCondition,

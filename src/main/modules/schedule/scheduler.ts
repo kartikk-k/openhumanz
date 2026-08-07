@@ -197,6 +197,12 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     armedFor = null;
   };
 
+  /**
+   * Late binding for the one cycle in this file: `arm` schedules `tick`, and
+   * `tick` re-arms when it is done. Assigned once, immediately below `tick`.
+   */
+  const wake: { tick: () => Promise<void> } = { tick: async () => {} };
+
   const arm = (): void => {
     disarm();
     if (stopped || !enabled || !store) return;
@@ -217,7 +223,7 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     timer = clock.setTimer(() => {
       timer = null;
       armedFor = null;
-      void tick();
+      void wake.tick();
     }, delay);
   };
 
@@ -397,7 +403,11 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
   /** Move `next_run_at` on before doing anything that can fail. */
   const advance = (job: ScheduledJob, fromMs: number): string | null => {
     try {
-      const next = nextRunAfter(job.cron, job.timezone || defaultTimezone, fromMs);
+      const next = nextRunAfter(
+        job.cron,
+        job.timezone || defaultTimezone,
+        fromMs,
+      );
       const iso = new Date(next).toISOString();
       requireStore().updateJob(job.id, { next_run_at: iso });
       return iso;
@@ -496,6 +506,7 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
       arm();
     }
   };
+  wake.tick = tick;
 
   /* ---------------------------------------------------------------- */
   /* Write paths                                                      */
@@ -518,10 +529,13 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     // are *not* applied on parse — they are genuinely optional on the wire.
     const metadata = parsed.metadata ?? {};
     const isEnabled = parsed.enabled ?? true;
-    const condition = await seedCondition(parsed.condition ?? { kind: 'always' }, {
-      paths: (ctx as SchedulerContext).paths,
-      readCounter,
-    });
+    const condition = await seedCondition(
+      parsed.condition ?? { kind: 'always' },
+      {
+        paths: (ctx as SchedulerContext).paths,
+        readCounter,
+      },
+    );
     const policy = policyFromMetadata(metadata);
 
     const job = jobs.insertJob({
@@ -562,7 +576,8 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
 
     const cron = parsed.cron ?? existing.cron;
     const timezone = parsed.timezone ?? existing.timezone;
-    const cronChanged = cron !== existing.cron || timezone !== existing.timezone;
+    const cronChanged =
+      cron !== existing.cron || timezone !== existing.timezone;
     if (cronChanged) {
       assertValidCron(cron, timezone);
       patch.cron = cron;
@@ -571,7 +586,8 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     }
 
     if (parsed.name !== undefined) patch.name = parsed.name;
-    if (parsed.description !== undefined) patch.description = parsed.description;
+    if (parsed.description !== undefined)
+      patch.description = parsed.description;
     if (parsed.prompt !== undefined) patch.prompt = parsed.prompt;
     if (parsed.engine !== undefined) patch.engine = parsed.engine;
     if (parsed.allowedTools !== undefined) {
@@ -605,7 +621,9 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     } else if (cronChanged || !existing.enabled || !existing.nextRunAt) {
       // Re-enabling recomputes from now rather than replaying whatever was
       // stored when the job was switched off.
-      patch.next_run_at = new Date(nextRunAfter(cron, timezone, now)).toISOString();
+      patch.next_run_at = new Date(
+        nextRunAfter(cron, timezone, now),
+      ).toISOString();
     }
 
     const updated = jobs.updateJob(parsed.id, patch);
@@ -615,7 +633,9 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     return updated;
   };
 
-  const remove = async (id: string): Promise<{ id: string; deleted: boolean }> => {
+  const remove = async (
+    id: string,
+  ): Promise<{ id: string; deleted: boolean }> => {
     const deleted = requireStore().deleteJob(id);
     if (deleted) {
       ctx?.events.emit('schedule:changed', { ids: [id] });

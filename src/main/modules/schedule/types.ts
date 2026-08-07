@@ -73,7 +73,8 @@ export interface ScheduleDispatch {
  */
 export type ScheduleDispatcher = (
   dispatch: ScheduleDispatch,
-) => Promise<{ runId?: string | null } | void> | { runId?: string | null } | void;
+) =>
+  Promise<{ runId?: string | null } | void> | { runId?: string | null } | void;
 
 /* ------------------------------------------------------------------ */
 /* Conditions                                                          */
@@ -117,7 +118,11 @@ export function isMissedRunPolicy(value: unknown): value is MissedRunPolicy {
 /* Run history                                                         */
 /* ------------------------------------------------------------------ */
 
-export const SCHEDULE_RUN_STATUSES = ['dispatched', 'skipped', 'error'] as const;
+export const SCHEDULE_RUN_STATUSES = [
+  'dispatched',
+  'skipped',
+  'error',
+] as const;
 export type ScheduleRunStatus = (typeof SCHEDULE_RUN_STATUSES)[number];
 
 /**

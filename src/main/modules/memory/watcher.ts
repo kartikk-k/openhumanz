@@ -158,9 +158,7 @@ export class MemoryWatcher {
 
   private enqueue(target: string, deleted: boolean): void {
     if (this.stopped) return;
-    const relative = toPosixPath(
-      path.relative(this.options.directory, target),
-    );
+    const relative = toPosixPath(path.relative(this.options.directory, target));
     if (!relative || relative.startsWith('..')) return;
     if (path.extname(relative).toLowerCase() !== MEMORY_EXTENSION) return;
 
@@ -183,7 +181,7 @@ export class MemoryWatcher {
     );
     this.pending.clear();
 
-    this.queue = this.queue.then(async () => {
+    const apply = async (): Promise<void> => {
       try {
         await this.options.onChanges(batch);
       } catch (cause) {
@@ -192,7 +190,8 @@ export class MemoryWatcher {
           count: batch.length,
         });
       }
-    });
+    };
+    this.queue = this.queue.then(apply, apply);
     return this.queue;
   }
 

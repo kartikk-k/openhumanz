@@ -112,7 +112,9 @@ export function normalizeVaultPath(memoryDir: string, input: string): string {
   }
 
   const cleaned = raw.replace(/\\/g, '/');
-  const withExtension = /\.md$/i.test(cleaned) ? cleaned : `${cleaned}${MEMORY_EXTENSION}`;
+  const withExtension = /\.md$/i.test(cleaned)
+    ? cleaned
+    : `${cleaned}${MEMORY_EXTENSION}`;
 
   const absolute = path.resolve(memoryDir, withExtension);
   if (!isInside(memoryDir, absolute) || absolute === path.resolve(memoryDir)) {
@@ -242,7 +244,9 @@ export class MemoryIndexer {
         contentHash,
         createdAt:
           existing?.createdAt ??
-          (stats ? new Date(stats.birthtimeMs || stats.mtimeMs).toISOString() : indexedAt),
+          (stats
+            ? new Date(stats.birthtimeMs || stats.mtimeMs).toISOString()
+            : indexedAt),
         updatedAt: modifiedAt,
         indexedAt,
       },
@@ -266,7 +270,9 @@ export class MemoryIndexer {
         path: relativePath,
         deleted: true,
       });
-      this.logger.debug('removed memory doc from index', { path: relativePath });
+      this.logger.debug('removed memory doc from index', {
+        path: relativePath,
+      });
     }
     return existed;
   }
@@ -487,10 +493,7 @@ export class MemoryIndexer {
    */
   async write(request: MemoryWriteRequestInput): Promise<MemoryDoc> {
     const parsed = MemoryWriteRequestSchema.parse(request);
-    const relativePath = normalizeVaultPath(
-      this.paths.memoryDir,
-      parsed.path,
-    );
+    const relativePath = normalizeVaultPath(this.paths.memoryDir, parsed.path);
     const absolute = this.absolutePath(relativePath);
 
     let content = parsed.content;

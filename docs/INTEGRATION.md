@@ -44,6 +44,20 @@ Default gate is `allowAllApprovalGate`; `start()` warns if it's still installed 
 
 Verified: `.mcp.json` entry shape is `{"mcpServers":{"<name>":{"type":"stdio","command","args","env"}}}` (confirmed via `claude mcp add-json` in a throwaway dir; nothing written to the user's config).
 
+## memory
+
+1. `import memory from './modules/memory'` → add to the `modules: []` array.
+2. Forward `events.on('memory:indexed', ({status}) => send(IPC_PUSH.memoryIndexed, {status}))`.
+3. `ensureWorkspace(paths)` before `registry.start()`.
+
+Tools: `memory_search`, `memory_get`, `memory_store` (side-effecting). Storage is FTS4 with BM25 computed in JS from `matchinfo`. Index is fully rebuildable from the markdown files alone — verified byte-identical including chunk ids.
+
+Gotcha for anyone else touching chokidar: **chokidar 5 is ESM-only** and tsconfig is `module: node16`, so a static import is a hard type error. `watcher.ts` uses dynamic import + a type-only `resolution-mode: 'import'`.
+
+### Deferred shared/ gaps (reconcile in the integration pass)
+- `IPC_PUSH` has `memoryIndexed` but nothing for the `memory:doc-changed` bus event. Without a `push:memory-doc-changed` channel the memory browser can only invalidate wholesale.
+- `MemorySearchHit` carries `docTitle` but not doc tags; search filters on tags but cannot return them, so the UI can't show tag chips on results.
+
 ## approvals (continued)
 
 Known gap: the module reads `settings.json` directly at start because modules cannot import each other. If a settings *service* appears, swapping `readApprovalSettings()` is a two-line change in `index.ts`.
