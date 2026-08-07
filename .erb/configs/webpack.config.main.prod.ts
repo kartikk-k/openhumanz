@@ -11,6 +11,8 @@ import baseConfig from './webpack.config.base';
 import webpackPaths from './webpack.paths';
 import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
+import createShimConfig from './webpack.config.shim';
+import CopyFilesPlugin from './copy-files-plugin';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -67,6 +69,13 @@ const configuration: webpack.Configuration = {
     new webpack.DefinePlugin({
       'process.type': '"browser"',
     }),
+
+    // sql.js is loaded at runtime, not bundled: webpack breaks emscripten's
+    // glue. Both files must sit next to the bundle. See infra/db.ts.
+    new CopyFilesPlugin([
+      { from: require.resolve('sql.js/dist/sql-wasm.js') },
+      { from: require.resolve('sql.js/dist/sql-wasm.wasm') },
+    ]),
   ],
 
   /**
@@ -80,4 +89,9 @@ const configuration: webpack.Configuration = {
   },
 };
 
-export default merge(baseConfig, configuration);
+// An array: the main/preload bundle and the standalone CommonJS shim bundle
+// are built together but cannot share an output.library type.
+export default [
+  merge(baseConfig, configuration),
+  createShimConfig('production'),
+];

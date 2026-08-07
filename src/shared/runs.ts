@@ -169,7 +169,11 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     type: z.literal('run.status'),
     status: RunStatusSchema,
   }),
-  z.object({ ...eventBase, type: z.literal('step.started'), step: RunStepSchema }),
+  z.object({
+    ...eventBase,
+    type: z.literal('step.started'),
+    step: RunStepSchema,
+  }),
   z.object({
     ...eventBase,
     type: z.literal('step.finished'),
@@ -182,8 +186,16 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     role: z.enum(['assistant', 'user', 'system']),
     text: z.string(),
   }),
-  z.object({ ...eventBase, type: z.literal('tool.call'), call: ToolCallSchema }),
-  z.object({ ...eventBase, type: z.literal('tool.result'), call: ToolCallSchema }),
+  z.object({
+    ...eventBase,
+    type: z.literal('tool.call'),
+    call: ToolCallSchema,
+  }),
+  z.object({
+    ...eventBase,
+    type: z.literal('tool.result'),
+    call: ToolCallSchema,
+  }),
   z.object({
     ...eventBase,
     type: z.literal('approval.requested'),

@@ -20,7 +20,11 @@ export const EngineSettingsSchema = z.object({
   /** Hard cost ceiling per run, USD. 0 disables the check. */
   maxCostUsdPerRun: z.number().nonnegative().default(2),
   /** Wall-clock ceiling for a single step. */
-  stepTimeoutMs: z.number().int().positive().default(10 * 60 * 1000),
+  stepTimeoutMs: z
+    .number()
+    .int()
+    .positive()
+    .default(10 * 60 * 1000),
   /** Working directory for engine invocations. Empty means the workspace root. */
   defaultCwd: z.string().default(''),
 });
@@ -34,7 +38,11 @@ export const ApprovalSettingsSchema = z.object({
   /** Which scope the card pre-selects. */
   defaultScope: ApprovalScopeSchema.default('once'),
   /** Pending approvals older than this are auto-expired. 0 disables. */
-  pendingTtlMs: z.number().int().nonnegative().default(30 * 60 * 1000),
+  pendingTtlMs: z
+    .number()
+    .int()
+    .nonnegative()
+    .default(30 * 60 * 1000),
 });
 export type ApprovalSettings = z.infer<typeof ApprovalSettingsSchema>;
 
@@ -64,29 +72,43 @@ export const UiSettingsSchema = z.object({
 });
 export type UiSettings = z.infer<typeof UiSettingsSchema>;
 
+export const NotificationSettingsSchema = z.object({
+  enabled: z.boolean().default(true),
+  onApprovalRequired: z.boolean().default(true),
+  onRunFinished: z.boolean().default(false),
+});
+export type NotificationSettings = z.infer<typeof NotificationSettingsSchema>;
+
+export const LoggingSettingsSchema = z.object({
+  level: LogLevelSchema.default('info'),
+  /** Rotate the log file once it exceeds this size. */
+  maxFileBytes: z
+    .number()
+    .int()
+    .positive()
+    .default(5 * 1024 * 1024),
+  maxFiles: z.number().int().positive().default(5),
+});
+export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
+
+/**
+ * Note on `.prefault({})` rather than `.default({})`:
+ * in zod v4 `.default()` takes the schema's *output* type, so a nested object
+ * whose every leaf has a default still cannot be defaulted from `{}` — the
+ * output type has all keys required. `.prefault()` takes the *input* type,
+ * which for these schemas is fully optional, and then runs the value through
+ * parsing so the leaf defaults fill in. That is exactly the behaviour we want.
+ */
 export const SettingsSchema = z.object({
   /** Absolute path. Empty means the default `~/.assistant`. */
   workspaceRoot: z.string().default(''),
-  engine: EngineSettingsSchema.default({}),
-  approvals: ApprovalSettingsSchema.default({}),
-  memory: MemorySettingsSchema.default({}),
-  schedule: ScheduleSettingsSchema.default({}),
-  ui: UiSettingsSchema.default({}),
-  notifications: z
-    .object({
-      enabled: z.boolean().default(true),
-      onApprovalRequired: z.boolean().default(true),
-      onRunFinished: z.boolean().default(false),
-    })
-    .default({}),
-  logging: z
-    .object({
-      level: LogLevelSchema.default('info'),
-      /** Rotate the log file once it exceeds this size. */
-      maxFileBytes: z.number().int().positive().default(5 * 1024 * 1024),
-      maxFiles: z.number().int().positive().default(5),
-    })
-    .default({}),
+  engine: EngineSettingsSchema.prefault({}),
+  approvals: ApprovalSettingsSchema.prefault({}),
+  memory: MemorySettingsSchema.prefault({}),
+  schedule: ScheduleSettingsSchema.prefault({}),
+  ui: UiSettingsSchema.prefault({}),
+  notifications: NotificationSettingsSchema.prefault({}),
+  logging: LoggingSettingsSchema.prefault({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The shape you may hand to `SettingsSchema.parse` — everything optional. */
@@ -106,22 +128,8 @@ export const SettingsPatchSchema = z.object({
   memory: MemorySettingsSchema.partial().optional(),
   schedule: ScheduleSettingsSchema.partial().optional(),
   ui: UiSettingsSchema.partial().optional(),
-  notifications: z
-    .object({
-      enabled: z.boolean(),
-      onApprovalRequired: z.boolean(),
-      onRunFinished: z.boolean(),
-    })
-    .partial()
-    .optional(),
-  logging: z
-    .object({
-      level: LogLevelSchema,
-      maxFileBytes: z.number().int().positive(),
-      maxFiles: z.number().int().positive(),
-    })
-    .partial()
-    .optional(),
+  notifications: NotificationSettingsSchema.partial().optional(),
+  logging: LoggingSettingsSchema.partial().optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

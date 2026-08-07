@@ -25,6 +25,9 @@ export type IsoDateTime = z.infer<typeof IsoDateTimeSchema>;
 export const IdSchema = z.string().min(1).describe('Opaque identifier');
 export type Id = z.infer<typeof IdSchema>;
 
+export type JsonValue =
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
 /** Free-form JSON blob. Stored as TEXT, parsed on read. */
 export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
   z.union([
@@ -36,13 +39,6 @@ export const JsonValueSchema: z.ZodType<JsonValue> = z.lazy(() =>
     z.record(z.string(), JsonValueSchema),
   ]),
 );
-export type JsonValue =
-  | string
-  | number
-  | boolean
-  | null
-  | JsonValue[]
-  | { [key: string]: JsonValue };
 
 export const JsonObjectSchema = z.record(z.string(), z.unknown());
 export type JsonObject = z.infer<typeof JsonObjectSchema>;

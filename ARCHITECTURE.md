@@ -15,6 +15,20 @@ A tool call physically terminates inside our process, so policy is unbypassable 
 - Dev machine is **Linux**; the product targets **macOS**. macOS-only code must be written so it reports itself unavailable on other platforms rather than throwing.
 - Electron bundles its own Node. Spawn helper processes through `process.execPath` with `ELECTRON_RUN_AS_NODE=1`, never a bare `node`.
 
+## Verified environment facts
+
+These were established empirically. `docs/API-NOTES.md` has the detail and code snippets — read it before writing against any of these libraries.
+
+- **sql.js has no FTS5.** Verified: `CREATE VIRTUAL TABLE … USING fts5` → `no such module: fts5`, and `OMIT_LOAD_EXTENSION` means it cannot be loaded at runtime. **FTS4 works fully** (MATCH, `snippet()`, `unicode61`, `porter`). Memory search uses FTS4. There is no `bm25()` — rank in JS from `matchinfo(tbl,'pcx')`. `snippet()` takes different argument order than FTS5.
+- **zod v4: use `.prefault({})`, not `.default({})`,** for a nested object whose leaves all have defaults. `.default()` takes the *output* type; `.prefault()` takes the *input* type.
+- **Every MCP `inputSchema` must be generated with `z.toJSONSchema(schema, { io: 'input' })`.** The default `io:"output"` marks defaulted fields as `required`, which is silently wrong for tool inputs.
+- **MCP custom transport:** only `start` / `send` / `close` / `onmessage` are actually required. Framing is newline-delimited JSON with **no Content-Length headers**. Reuse the SDK's own `ReadBuffer` / `serializeMessage` from `shared/stdio.js` rather than hand-rolling framing. Never call `start()` yourself — `connect()` does it after installing callbacks. `close()` must fire `onclose?.()` even when called explicitly.
+- **`McpServer.registerTool`'s `inputSchema` takes a raw shape** (`{k: z.string()}`), not `z.object({...})`. `Server` is deprecated in favour of `McpServer`, though `setRequestHandler` still works.
+- **Electron must be ≥33.** Electron 22 bundles Node 16.17; MCP SDK and cron-parser need ≥18, chokidar 5 needs ≥20.19.
+- **cron-parser v5:** `CronExpressionParser.parse()`, timezone option is **`tz`** (not `timezone`), returns a `CronDate` (call `.toDate()`). Invalid expressions throw a plain `Error` with no `code`.
+- **chokidar v5:** globs are gone. `ignored` takes a `(path, stats) => boolean` matcher.
+- **Claude Code CLI:** `--max-turns <turns>` exists but is hidden from `--help`. Fail soft on it. `codex` is not installed on this machine.
+
 ## Layering — dependencies point one direction
 
 ```
