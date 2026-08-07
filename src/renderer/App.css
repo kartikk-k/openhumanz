@@ -6,20 +6,65 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Sane default surface colors, follows the OS color scheme */
 @layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
   body {
-    @apply bg-white text-neutral-900 dark:bg-neutral-950 dark:text-neutral-100;
+    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    /* Desktop chrome, not a web page: no text selection on furniture, and no
+       rubber-band scrolling of the whole window. */
+    overflow: hidden;
+    -webkit-user-select: none;
+    user-select: none;
+    font-size: 14px;
+  }
+
+  /* Content the user might reasonably want to copy opts back in. */
+  p,
+  pre,
+  code,
+  td,
+  input,
+  textarea,
+  [data-selectable] {
+    -webkit-user-select: text;
+    user-select: text;
+  }
+
+  /* A native window's scrollbars are too heavy for a dense tool. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply rounded-full border-[3px] border-solid border-transparent bg-zinc-300 bg-clip-padding dark:bg-zinc-700;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-400 dark:bg-zinc-600;
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
   }
 }
 
-/* Draggable window region */
+/* Draggable window region. The app uses a normal framed window, so this is
+   only here for any custom surface that opts in. */
 .draggable-region {
   -webkit-app-region: drag;
   app-region: drag;
 }
 
-/* Make sure interactive elements inside draggable regions are still clickable */
 .draggable-region button,
 .draggable-region input,
 .draggable-region a,

@@ -44,6 +44,24 @@ Default gate is `allowAllApprovalGate`; `start()` warns if it's still installed 
 
 Verified: `.mcp.json` entry shape is `{"mcpServers":{"<name>":{"type":"stdio","command","args","env"}}}` (confirmed via `claude mcp add-json` in a throwaway dir; nothing written to the user's config).
 
+## engines (services/engines)
+
+- `const engines = createEngineRegistry({ logger })`; call `engines.detectAll()` at startup and on the environment-status IPC channel.
+- Surface `report.status.apiKeyEnvDetected` / `warnings[0]` in onboarding — the stray-key case is already first in the list.
+- `killAllTracked()` on `before-quit`.
+- The orchestrator owns `runId`/`seq`: consume `run.batches()`, pass each batch through `toRunEvents(batch, ctx, index)` with one long-lived ctx + `ToolCallIndex` per run, then emit `runFinishedEvent()` itself.
+- Callers must pass `transcriptPath: runs/<runId>/transcript.jsonl` and `stderrLogPath: runs/<runId>/stderr.log` — the adapter writes both but invents no paths.
+
+`EngineRunOptions` makes `maxTurns`, `maxCostUsd` and `cwd` **required** — the circuit breakers cannot be forgotten because it won't compile without them.
+
+Observed: `claude --version` → `2.1.224`. `--max-turns` confirmed present by arity probe despite being absent from `--help`; adapter fails soft and retries without it.
+
+**New free capability worth using: `claude auth status --json`** → `{loggedIn, authMethod, apiProvider, email, orgId, orgName, subscriptionType}`. This is what makes auth a structured status rather than a guess. Not in API-NOTES §8.
+
+### Deferred shared/ gaps
+- `EngineInfoSchema` has no `auth` field, so `detectAll()` returns a sidecar `auth: Record<engineId, EngineAuthStatus>`. Either add optional `auth` to the schema or keep the sidecar.
+- `EnvironmentStatus.providers` comes from elsewhere; `detectAll()` returns `Omit<EnvironmentStatus,'providers'>` to merge.
+
 ## memory
 
 1. `import memory from './modules/memory'` → add to the `modules: []` array.

@@ -1,8 +1,9 @@
 import { useEffect, useRef } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../routes';
 import { useAppBootstrap, useShouldOnboard } from '../../store';
 import { Toaster } from '../ui/Toast';
+import { ErrorBoundary } from '../shared/ErrorBoundary';
 import { Sidebar } from './Sidebar';
 import { EnvironmentBanner, StatusStrip } from './StatusStrip';
 
@@ -21,6 +22,7 @@ export function AppShell() {
   useAppBootstrap();
 
   const navigate = useNavigate();
+  const location = useLocation();
   const shouldOnboard = useShouldOnboard();
   const redirected = useRef(false);
 
@@ -37,7 +39,10 @@ export function AppShell() {
         <StatusStrip />
         <EnvironmentBanner />
         <main className="min-h-0 flex-1 overflow-y-auto">
-          <Outlet />
+          {/* Keyed by route so a crashed screen clears when you navigate away. */}
+          <ErrorBoundary key={location.pathname}>
+            <Outlet />
+          </ErrorBoundary>
         </main>
       </div>
       <Toaster />

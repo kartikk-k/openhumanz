@@ -279,10 +279,7 @@ const RUN_QUERIES = {
   },
 } as const;
 
-function filterKey(
-  jobId?: string,
-  status?: string,
-): keyof typeof RUN_QUERIES {
+function filterKey(jobId?: string, status?: string): keyof typeof RUN_QUERIES {
   if (jobId && status) return 'both';
   if (jobId) return 'job';
   if (status) return 'status';
@@ -416,15 +413,12 @@ export function createStore(db: Db): ScheduleStore {
       const { jobId, status, limit = 50, offset = 0 } = query;
       // One fixed statement per filter combination. The filters choose which
       // constant to run; they never build one.
-      const rows = db.all(
-        RUN_QUERIES[filterKey(jobId, status)].select,
-        [
-          ...(jobId ? [jobId] : []),
-          ...(status ? [status] : []),
-          limit,
-          offset,
-        ],
-      );
+      const rows = db.all(RUN_QUERIES[filterKey(jobId, status)].select, [
+        ...(jobId ? [jobId] : []),
+        ...(status ? [status] : []),
+        limit,
+        offset,
+      ]);
 
       return rows.map((row) => ({
         id: String(row.id),
