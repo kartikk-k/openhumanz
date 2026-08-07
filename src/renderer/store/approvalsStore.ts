@@ -29,7 +29,10 @@ interface ApprovalsState extends LoadableState {
   resolving: string[];
 
   load: (runId?: string) => Promise<void>;
-  loadGrants: (filter?: { scope?: ApprovalScope; runId?: string }) => Promise<void>;
+  loadGrants: (filter?: {
+    scope?: ApprovalScope;
+    runId?: string;
+  }) => Promise<void>;
   /** Resolve one approval. Returns false if the write failed. */
   resolve: (resolution: ApprovalResolution) => Promise<boolean>;
   revokeGrant: (id: string) => Promise<boolean>;
@@ -98,9 +101,7 @@ export const useApprovalsStore = create<ApprovalsState>((set, get) => ({
       return false;
     } finally {
       set({
-        resolving: get().resolving.filter(
-          (id) => id !== resolution.approvalId,
-        ),
+        resolving: get().resolving.filter((id) => id !== resolution.approvalId),
       });
     }
   },

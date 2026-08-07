@@ -76,7 +76,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     path: ROUTES.approvals,
     label: 'Approvals',
     icon: ShieldCheck,
-    description: 'Actions waiting on you, and the standing grants you have given.',
+    description:
+      'Actions waiting on you, and the standing grants you have given.',
     badge: 'approvals',
   },
   {

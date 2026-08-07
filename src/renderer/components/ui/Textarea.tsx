@@ -7,8 +7,7 @@ import {
 import { cn } from '../../lib/utils';
 import { Field, describedBy } from './Field';
 
-export interface TextareaProps
-  extends TextareaHTMLAttributes<HTMLTextAreaElement> {
+export interface TextareaProps extends TextareaHTMLAttributes<HTMLTextAreaElement> {
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;

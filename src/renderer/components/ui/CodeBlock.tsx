@@ -44,14 +44,14 @@ export function CodeBlock({
 }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
 
-  const copy = useCallback(() => {
-    void navigator.clipboard
-      ?.writeText(code)
-      .then(() => {
-        setCopied(true);
-        setTimeout(() => setCopied(false), 1200);
-      })
-      .catch(() => setCopied(false));
+  const copy = useCallback(async () => {
+    try {
+      await navigator.clipboard?.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
   }, [code]);
 
   const lines = showLineNumbers ? code.split('\n') : null;
@@ -74,7 +74,9 @@ export function CodeBlock({
             {copyable ? (
               <button
                 type="button"
-                onClick={copy}
+                onClick={() => {
+                  void copy();
+                }}
                 aria-label={copied ? 'Copied' : 'Copy to clipboard'}
                 className={cn(
                   'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] text-zinc-500 transition-colors',

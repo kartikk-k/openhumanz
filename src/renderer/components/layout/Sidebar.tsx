@@ -29,7 +29,9 @@ function ApprovalsBadge() {
 /** Engine availability, bottom of the sidebar. Quiet unless something is wrong. */
 function EngineStatus() {
   const environment = useEnvironment();
-  const preferredId = useSettingsStore((state) => state.settings.engine.preferred);
+  const preferredId = useSettingsStore(
+    (state) => state.settings.engine.preferred,
+  );
   const engine = usePreferredEngine(preferredId);
 
   if (!environment) {

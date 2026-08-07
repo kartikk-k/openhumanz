@@ -13,7 +13,11 @@
  * Read `types.ts` before adding one — it documents the three conventions that
  * keep these interchangeable.
  */
-export { useApprovalsStore, usePendingApprovalCount, usePendingApprovalsForRun } from './approvalsStore';
+export {
+  useApprovalsStore,
+  usePendingApprovalCount,
+  usePendingApprovalsForRun,
+} from './approvalsStore';
 export {
   useEnvironment,
   useEnvironmentStore,

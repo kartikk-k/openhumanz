@@ -23,7 +23,8 @@ import { IPC_PUSH } from '../../../shared/ipc';
 import type { RunEvent } from '../../../shared/runs';
 
 /** The push channels this module owns. */
-export type RunPushChannel = typeof IPC_PUSH.runEvents | typeof IPC_PUSH.runStatus;
+export type RunPushChannel =
+  typeof IPC_PUSH.runEvents | typeof IPC_PUSH.runStatus;
 
 /**
  * Whatever actually delivers a push. In `main.ts` this wraps

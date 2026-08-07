@@ -84,7 +84,10 @@ export function formatDuration(ms?: number | null): string {
 }
 
 /** Elapsed time between two ISO stamps, falling back to now. */
-export function formatElapsed(startIso?: string | null, endIso?: string | null): string {
+export function formatElapsed(
+  startIso?: string | null,
+  endIso?: string | null,
+): string {
   const start = parse(startIso);
   if (!start) return DASH;
   const end = parse(endIso) ?? new Date();
@@ -136,7 +139,11 @@ export function formatJson(value: unknown): string {
 }
 
 /** `3 runs` / `1 run` — the plural you write forty times a screen. */
-export function pluralize(count: number, singular: string, plural?: string): string {
+export function pluralize(
+  count: number,
+  singular: string,
+  plural?: string,
+): string {
   return `${count} ${count === 1 ? singular : (plural ?? `${singular}s`)}`;
 }
 

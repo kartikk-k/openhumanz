@@ -44,6 +44,23 @@ Default gate is `allowAllApprovalGate`; `start()` warns if it's still installed 
 
 Verified: `.mcp.json` entry shape is `{"mcpServers":{"<name>":{"type":"stdio","command","args","env"}}}` (confirmed via `claude mcp add-json` in a throwaway dir; nothing written to the user's config).
 
+## schedule
+
+1. `import scheduleModule from './modules/schedule'` → registry list. Nothing else required for it to run.
+2. **The orchestrator must subscribe to `schedule:due`** (`{jobId}`) and create the run. If it can return a run id, inject it as `dispatch` via `createScheduleModule`; otherwise `lastRunId` stays null (the module already updates `lastStatus` from `run:finished` by matching `last_run_id`).
+3. `settings.schedule` isn't readable from a module ctx — pass `createScheduleModule({ enabled, defaultTimezone })`. `tickMs` is unused by design: this is not a poller.
+4. `counter-changed` conditions need a producer — a service should call `recordCounterReading(db, 'mail:unread', n)` or inject `counterReader`. With no reading the condition **fails closed**.
+
+Conditions: `always`, `file-changed`, `counter-changed`, `time-window`. All are cheap, deterministic, fail closed, and record a human sentence in history. Baselines seed at create/update so a new job doesn't fire on a year-old file.
+
+One timer armed for the soonest `nextRunAt`, clamped to 15 min so suspend/clock-jump can't strand it. `catch-up` dispatches **once** with `missedCount`, not N times.
+
+**Bug found and fixed, worth remembering:** `fs.stat().mtimeMs` is a float but `lastSeenMtimeMs` is `z.number().int()`. Storing it raw made the condition fail re-parse on read and silently degrade to `always` — a gated job quietly becoming an unconditional heartbeat. Now floored, and an unparseable condition reads as **disabled** rather than falling back to `always`.
+
+### Deferred shared/ gaps
+- `ScheduledJobSchema` has no `missedRunPolicy` field; it's authoritative in the module's own column and surfaced through `metadata.missedRunPolicy`. Promote it.
+- No shared type for run history and **no `schedule:history` IPC channel** — history is MCP-only today. The jobs screen will want one.
+
 ## tasks + goals
 
 Add both to the registry list. Forward `tasks:changed` / `goals:changed` to `IPC_PUSH.tasksChanged` / `goalsChanged` (a generic forwarder covers it). For per-turn goal injection call `goalStore.compact()` — pre-capped and measured.

@@ -22,7 +22,11 @@ const SIZES: Record<NonNullable<SpinnerProps['size']>, string> = {
  * Indeterminate progress. A CSS ring rather than an icon so it inherits
  * `currentColor` and stays crisp at every size.
  */
-export function Spinner({ size = 'sm', className, label = 'Loading' }: SpinnerProps) {
+export function Spinner({
+  size = 'sm',
+  className,
+  label = 'Loading',
+}: SpinnerProps) {
   return (
     <span
       className={cn(

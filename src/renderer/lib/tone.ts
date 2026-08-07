@@ -13,12 +13,7 @@
  *   danger   failed, destructive, denied
  */
 export type Tone =
-  | 'neutral'
-  | 'accent'
-  | 'info'
-  | 'success'
-  | 'warning'
-  | 'danger';
+  'neutral' | 'accent' | 'info' | 'success' | 'warning' | 'danger';
 
 export const TONES: readonly Tone[] = [
   'neutral',

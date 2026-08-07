@@ -63,7 +63,10 @@ export function Placeholder({
                     key={index}
                     className="flex gap-2"
                   >
-                    <span aria-hidden="true" className="text-zinc-300 dark:text-zinc-600">
+                    <span
+                      aria-hidden="true"
+                      className="text-zinc-300 dark:text-zinc-600"
+                    >
                       —
                     </span>
                     <span>{requirement}</span>

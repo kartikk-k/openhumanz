@@ -108,7 +108,11 @@ export function Toaster() {
       role="region"
       aria-label="Notifications"
     >
-      <div aria-live="polite" aria-atomic="false" className="flex flex-col gap-2">
+      <div
+        aria-live="polite"
+        aria-atomic="false"
+        className="flex flex-col gap-2"
+      >
         {toasts.map((item) => (
           <ToastRow key={item.id} item={item} onDismiss={dismiss} />
         ))}

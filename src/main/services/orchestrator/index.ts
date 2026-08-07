@@ -259,7 +259,9 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
     const cwd = plannedStep.cwd ?? run.cwd ?? defaults.cwd;
 
     let usage: Usage = {};
-    let sessionId = plannedStep.continueSession ? inheritedSessionId : undefined;
+    let sessionId = plannedStep.continueSession
+      ? inheritedSessionId
+      : undefined;
     let summary: string | undefined;
     let failure: { kind: EngineFailureKind; message: string } | undefined;
     let sawResult = false;
@@ -556,24 +558,25 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
       // `return()` is what kills the process tree; it is given a grace window
       // so a hung child cannot wedge a cancel.
       if (iterator.return) {
-        const RETURN_TIMEOUT = Symbol('return-timeout');
-        const timer = new Promise<typeof RETURN_TIMEOUT>((resolve) => {
-          const handle2 = setTimeout(
-            () => resolve(RETURN_TIMEOUT),
-            cancelGraceMs,
-          );
-          handle2.unref?.();
+        // Deliberately *not* unref'd: this timeout is actively awaited, and it
+        // is the only thing standing between a wedged child and a cancel that
+        // never returns. It is always cleared, so a healthy step pays nothing.
+        let timeoutHandle: NodeJS.Timeout | undefined;
+        const timedOut = new Promise<'timeout'>((resolve) => {
+          timeoutHandle = setTimeout(() => resolve('timeout'), cancelGraceMs);
         });
         const closed = await Promise.race([
           iterator.return().then(
             () => 'closed' as const,
             () => 'closed' as const,
           ),
-          timer,
+          timedOut,
         ]);
-        if (closed === RETURN_TIMEOUT) {
-          stepLogger.warn('engine did not shut down in time', {
+        if (timeoutHandle) clearTimeout(timeoutHandle);
+        if (closed === 'timeout') {
+          stepLogger.warn('engine did not shut its stream down in time', {
             stepId: step.id,
+            cancelGraceMs,
           });
         }
       }

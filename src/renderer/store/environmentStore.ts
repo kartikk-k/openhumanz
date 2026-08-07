@@ -51,7 +51,9 @@ export const useEnvironmentStore = create<EnvironmentState>((set) => ({
     try {
       const engines = await call(IPC.engines.detect, { force });
       set((state) =>
-        state.environment ? { environment: { ...state.environment, engines } } : {},
+        state.environment
+          ? { environment: { ...state.environment, engines } }
+          : {},
       );
       return engines;
     } catch (cause) {
@@ -78,7 +80,9 @@ export function usePreferredEngine(preferredId?: string): EngineInfo | null {
     const preferred = preferredId
       ? engines.find((engine) => engine.id === preferredId)
       : undefined;
-    return preferred ?? engines.find((engine) => engine.available) ?? engines[0];
+    return (
+      preferred ?? engines.find((engine) => engine.available) ?? engines[0]
+    );
   }, [environment, preferredId]);
 }
 
@@ -96,7 +100,10 @@ export function useEnvironmentWarnings(): string[] {
         'ANTHROPIC_API_KEY is set in the environment. Runs will bill the API instead of your subscription.',
       );
     }
-    if (environment.engines.length > 0 && !environment.engines.some((e) => e.available)) {
+    if (
+      environment.engines.length > 0 &&
+      !environment.engines.some((e) => e.available)
+    ) {
       warnings.push('No agent CLI was found. Runs cannot start.');
     }
     return warnings;

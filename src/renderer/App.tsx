@@ -1,4 +1,9 @@
-import { MemoryRouter as Router, Navigate, Route, Routes } from 'react-router-dom';
+import {
+  MemoryRouter as Router,
+  Navigate,
+  Route,
+  Routes,
+} from 'react-router-dom';
 import { ROUTES } from './routes';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';

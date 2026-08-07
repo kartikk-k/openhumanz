@@ -226,7 +226,9 @@ export const useRunsStore = create<RunsState>((set, get) => ({
   upsertRun: (run) =>
     set((state) => ({
       runs: { ...state.runs, [run.id]: run },
-      order: state.order.includes(run.id) ? state.order : [run.id, ...state.order],
+      order: state.order.includes(run.id)
+        ? state.order
+        : [run.id, ...state.order],
     })),
 
   clearEvents: (runId) =>

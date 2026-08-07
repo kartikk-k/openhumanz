@@ -8,8 +8,19 @@
  * real focus management, keyboard operation and aria wiring, and anything new
  * added alongside them is expected to match.
  */
-export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
-export { Badge, StatusDot, type BadgeProps, type BadgeVariant, type StatusDotProps } from './Badge';
+export {
+  Button,
+  type ButtonProps,
+  type ButtonSize,
+  type ButtonVariant,
+} from './Button';
+export {
+  Badge,
+  StatusDot,
+  type BadgeProps,
+  type BadgeVariant,
+  type StatusDotProps,
+} from './Badge';
 export {
   Card,
   CardContent,

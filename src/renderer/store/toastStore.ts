@@ -88,7 +88,9 @@ export const toast = {
   warning: (title: string, options?: ToastOptions) =>
     useToastStore.getState().push('warning', title, options),
   error: (title: string, options?: ToastOptions) =>
-    useToastStore.getState().push('danger', title, { durationMs: 8000, ...options }),
+    useToastStore
+      .getState()
+      .push('danger', title, { durationMs: 8000, ...options }),
   dismiss: (id: string) => useToastStore.getState().dismiss(id),
   clear: () => useToastStore.getState().clear(),
 };

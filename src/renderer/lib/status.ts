@@ -21,7 +21,11 @@ import {
   XCircle,
   type LucideIcon,
 } from 'lucide-react';
-import type { RunStatus, RunStepStatus, ToolCallStatus } from '../../shared/runs';
+import type {
+  RunStatus,
+  RunStepStatus,
+  ToolCallStatus,
+} from '../../shared/runs';
 import type { TaskPriority, TaskStatus, GoalStatus } from '../../shared/tasks';
 import type { ApprovalStatus, ApprovalScope } from '../../shared/approvals';
 import type { Tone } from './tone';

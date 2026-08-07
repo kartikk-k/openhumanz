@@ -82,9 +82,7 @@ export function ConfirmDialog({
         </>
       }
     >
-      {children ? (
-        <div className={cn('text-[13px]')}>{children}</div>
-      ) : null}
+      {children ? <div className={cn('text-[13px]')}>{children}</div> : null}
     </Dialog>
   );
 }

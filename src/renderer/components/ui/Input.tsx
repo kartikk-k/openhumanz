@@ -8,8 +8,10 @@ import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { Field, describedBy } from './Field';
 
-export interface InputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, 'size'> {
+export interface InputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  'size'
+> {
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;
@@ -44,11 +46,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   ) => {
     const generatedId = useId();
     const inputId = id ?? generatedId;
-    const describedById = describedBy(
-      inputId,
-      Boolean(error),
-      Boolean(hint),
-    );
+    const describedById = describedBy(inputId, Boolean(error), Boolean(hint));
 
     return (
       <Field

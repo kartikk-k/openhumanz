@@ -490,7 +490,8 @@ export function createRunStore(options: RunStoreOptions): RunStore {
       if ('finishedAt' in patch) values.finishedAt = patch.finishedAt ?? null;
       if ('durationMs' in patch) values.durationMs = patch.durationMs ?? null;
       if ('error' in patch) values.error = patch.error ?? null;
-      if ('failureKind' in patch) values.failureKind = patch.failureKind ?? null;
+      if ('failureKind' in patch)
+        values.failureKind = patch.failureKind ?? null;
       if ('usage' in patch) {
         values.usageJson = patch.usage ? JSON.stringify(patch.usage) : null;
       }
@@ -578,7 +579,9 @@ export function createRunStore(options: RunStoreOptions): RunStore {
     },
 
     runFailureKind(id) {
-      const row = db.get('SELECT failure_kind FROM runs_run WHERE id = ?', [id]);
+      const row = db.get('SELECT failure_kind FROM runs_run WHERE id = ?', [
+        id,
+      ]);
       return text(row?.failure_kind) as FailureKind | undefined;
     },
 
@@ -627,7 +630,8 @@ export function createRunStore(options: RunStoreOptions): RunStore {
       if ('durationMs' in patch) values.durationMs = patch.durationMs ?? null;
       if ('summary' in patch) values.summary = patch.summary ?? null;
       if ('error' in patch) values.error = patch.error ?? null;
-      if ('failureKind' in patch) values.failureKind = patch.failureKind ?? null;
+      if ('failureKind' in patch)
+        values.failureKind = patch.failureKind ?? null;
       if ('usage' in patch) {
         values.usageJson = patch.usage ? JSON.stringify(patch.usage) : null;
       }
@@ -837,7 +841,9 @@ export function createRunStore(options: RunStoreOptions): RunStore {
              ORDER BY requested_at`,
           [runId],
         )
-        .map((row) => ApprovalSchema.safeParse(parseJson(row.approval_json, {})))
+        .map((row) =>
+          ApprovalSchema.safeParse(parseJson(row.approval_json, {})),
+        )
         .filter(
           (parsed): parsed is { success: true; data: Approval } =>
             parsed.success,

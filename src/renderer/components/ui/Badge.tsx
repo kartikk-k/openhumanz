@@ -50,9 +50,7 @@ export function Badge({
       title={title}
       className={cn(
         'inline-flex max-w-full items-center gap-1 rounded font-medium',
-        size === 'sm'
-          ? 'h-[18px] px-1.5 text-[11px]'
-          : 'h-6 px-2 text-xs',
+        size === 'sm' ? 'h-[18px] px-1.5 text-[11px]' : 'h-6 px-2 text-xs',
         toneClass,
         className,
       )}
@@ -64,7 +62,11 @@ export function Badge({
         />
       )}
       {!dot && Icon && (
-        <Icon size={size === 'sm' ? 11 : 13} strokeWidth={2.25} aria-hidden="true" />
+        <Icon
+          size={size === 'sm' ? 11 : 13}
+          strokeWidth={2.25}
+          aria-hidden="true"
+        />
       )}
       <span className="truncate">{children}</span>
     </span>

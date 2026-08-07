@@ -5,12 +5,7 @@ import { focusRing } from './styles';
 import { Spinner } from './Spinner';
 
 export type ButtonVariant =
-  | 'primary'
-  | 'secondary'
-  | 'ghost'
-  | 'outline'
-  | 'destructive'
-  | 'link';
+  'primary' | 'secondary' | 'ghost' | 'outline' | 'destructive' | 'link';
 
 export type ButtonSize = 'xs' | 'sm' | 'md' | 'icon' | 'icon-sm';
 

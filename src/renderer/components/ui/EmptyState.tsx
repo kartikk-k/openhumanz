@@ -62,7 +62,9 @@ export function EmptyState({
           </p>
         ) : null}
       </div>
-      {action ? <div className="mt-1 flex items-center gap-2">{action}</div> : null}
+      {action ? (
+        <div className="mt-1 flex items-center gap-2">{action}</div>
+      ) : null}
       {footer ? (
         <div className="mt-1 text-[11px] text-zinc-400 dark:text-zinc-500">
           {footer}

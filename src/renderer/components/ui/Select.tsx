@@ -14,8 +14,10 @@ export interface SelectOption<T extends string = string> {
   disabled?: boolean;
 }
 
-export interface SelectProps
-  extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size' | 'children'> {
+export interface SelectProps extends Omit<
+  SelectHTMLAttributes<HTMLSelectElement>,
+  'size' | 'children'
+> {
   label?: ReactNode;
   hint?: ReactNode;
   error?: ReactNode;

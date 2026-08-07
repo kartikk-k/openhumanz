@@ -48,8 +48,7 @@ export function Table({
   );
 }
 
-export interface TableHeadProps
-  extends HTMLAttributes<HTMLTableSectionElement> {
+export interface TableHeadProps extends HTMLAttributes<HTMLTableSectionElement> {
   sticky?: boolean;
 }
 
@@ -121,8 +120,7 @@ export function TableRow({
   );
 }
 
-export interface TableHeaderCellProps
-  extends ThHTMLAttributes<HTMLTableCellElement> {
+export interface TableHeaderCellProps extends ThHTMLAttributes<HTMLTableCellElement> {
   align?: 'left' | 'right' | 'center';
   /** Fixed column width, e.g. `'8rem'`. */
   width?: string | number;
@@ -153,8 +151,7 @@ export function TableHeaderCell({
   );
 }
 
-export interface TableCellProps
-  extends TdHTMLAttributes<HTMLTableCellElement> {
+export interface TableCellProps extends TdHTMLAttributes<HTMLTableCellElement> {
   align?: 'left' | 'right' | 'center';
   /** Numeric columns: tabular figures so digits line up. */
   numeric?: boolean;
