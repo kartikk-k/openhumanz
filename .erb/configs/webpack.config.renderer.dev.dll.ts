@@ -30,8 +30,24 @@ const configuration: webpack.Configuration = {
    */
   module: require('./webpack.config.renderer.dev').default.module,
 
+  /**
+   * Main-process-only dependencies. The DLL is an `electron-renderer` bundle, so
+   * vendoring these is both pointless and, for packages that expose only subpath
+   * exports (the MCP SDK) or a wasm sidecar (sql.js), a build failure.
+   */
   entry: {
-    renderer: Object.keys(dependencies || {}),
+    renderer: Object.keys(dependencies || {}).filter(
+      (name) =>
+        ![
+          '@modelcontextprotocol/sdk',
+          'sql.js',
+          'chokidar',
+          'cron-parser',
+          'electron-debug',
+          'electron-log',
+          'electron-updater',
+        ].includes(name),
+    ),
   },
 
   output: {
