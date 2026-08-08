@@ -146,6 +146,12 @@ export const MISSED_RUN_POLICY_LABEL: Record<MissedRunPolicy, string> = {
   'catch-up': 'Catch up',
 };
 
+/** Lower-case form, for the "if missed: …" line in a dense table cell. */
+export const MISSED_RUN_POLICY_WORD: Record<MissedRunPolicy, string> = {
+  skip: 'skip',
+  'catch-up': 'catch up',
+};
+
 export const MISSED_RUN_POLICY_HINT: Record<MissedRunPolicy, string> = {
   skip: 'Occurrences that came due while the app was closed are recorded and dropped.',
   'catch-up':

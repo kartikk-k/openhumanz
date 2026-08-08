@@ -24,7 +24,11 @@ export interface ApproveScopeCopy {
   scope: ApprovalScope;
   /** Button label. From the shared table — do not re-word it here. */
   label: string;
-  /** Full sentence, shown in the tooltip and in the confirm dialog. */
+  /**
+   * Full sentence, shown in the tooltip and in the confirm dialog. It carries
+   * no keyboard hint — {@link withShortcut} adds one where a hint belongs, and
+   * a dialog reads better without a stray letter in brackets.
+   */
   consequence: string;
   /** Compact form for the one-line legend under the buttons. */
   legend: string;
@@ -40,7 +44,7 @@ export const APPROVE_SCOPES: readonly ApproveScopeCopy[] = [
     scope: 'once',
     label: APPROVAL_SCOPE_LABEL.once,
     consequence:
-      'Runs this one call. The next call like it asks you again. (A)',
+      'Runs this one call. The next call like it asks you again.',
     legend: 'this call only',
     shortcut: 'a',
     icon: Check,
@@ -51,7 +55,7 @@ export const APPROVE_SCOPES: readonly ApproveScopeCopy[] = [
     label: APPROVAL_SCOPE_LABEL.run,
     consequence:
       'Runs this call, and matching calls stop asking until this run ends. ' +
-      'The grant is dropped when the run finishes. (R)',
+      'The grant is dropped when the run finishes.',
     legend: 'matching calls until this run ends',
     shortcut: 'r',
     icon: RefreshCw,
@@ -62,7 +66,7 @@ export const APPROVE_SCOPES: readonly ApproveScopeCopy[] = [
     label: APPROVAL_SCOPE_LABEL.always,
     consequence:
       'Runs this call, and matching calls stop asking in every run from now ' +
-      'on. It is listed under Grants and you can take it back at any time. (L)',
+      'on. It is listed under Grants and you can take it back at any time.',
     legend: 'matching calls in every run, revocable under Grants',
     shortcut: 'l',
     icon: ShieldCheck,
@@ -74,7 +78,7 @@ export const DENY_COPY = {
   label: 'Deny',
   consequence:
     'This call does not run. The assistant is told to stop rather than being ' +
-    'asked again, and you can attach a note saying why. (D)',
+    'asked again, and you can attach a note saying why.',
   shortcut: 'd',
 };
 

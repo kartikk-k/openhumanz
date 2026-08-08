@@ -76,6 +76,7 @@ import {
   BridgeNotice,
   ConditionChip,
   MISSED_RUN_POLICY_LABEL,
+  MISSED_RUN_POLICY_WORD,
   lastOutputPreview,
 } from './parts';
 
@@ -645,7 +646,7 @@ function JobRow({
       <TableCell>
         <ConditionChip condition={job.condition} />
         <span className={cn('mt-0.5 block text-[10.5px]', textMuted)}>
-          {MISSED_RUN_POLICY_LABEL[job.missedRunPolicy]} if missed
+          if missed: {MISSED_RUN_POLICY_WORD[job.missedRunPolicy]}
         </span>
       </TableCell>
 
