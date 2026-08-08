@@ -66,6 +66,13 @@ const createWindow = async () => {
     return path.join(RESOURCES_PATH, ...paths);
   };
 
+  // In a packaged macOS build the dock icon comes from the bundled .icns, but
+  // in development Electron shows its own default. Set it explicitly so the
+  // dock matches the app icon while running `bun run start`.
+  if (process.platform === 'darwin' && !app.isPackaged && app.dock) {
+    app.dock.setIcon(getAssetPath('icon.png'));
+  }
+
   mainWindow = new BrowserWindow({
     show: false,
     width: 1024,
