@@ -77,8 +77,23 @@
   }
 }
 
-/* Draggable window region. The app uses a normal framed window, so this is
-   only here for any custom surface that opts in. */
+/* A brief highlight on a settings section after the search rail jumps to it,
+   so the eye lands in the right place. */
+.settings-jump-flash {
+  animation: settings-jump-flash 1.2s ease-out;
+}
+
+@keyframes settings-jump-flash {
+  0% {
+    box-shadow: 0 0 0 2px rgb(99 102 241 / 0.6);
+  }
+  100% {
+    box-shadow: 0 0 0 2px rgb(99 102 241 / 0);
+  }
+}
+
+/* Draggable window region. The app uses a frameless macOS window, so the top
+   strips opt into dragging; interactive children opt back out below. */
 .draggable-region {
   -webkit-app-region: drag;
   app-region: drag;

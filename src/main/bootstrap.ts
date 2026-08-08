@@ -51,6 +51,9 @@ import { createScheduleModule } from './modules/schedule';
 import settingsAppModule, { configureSettings } from './modules/settings';
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
+import { createChatModule } from './modules/chat';
+import { createChatSessionRunner } from './services/chat-session-runner';
+import { CLAUDE_CODE_ENGINE_ID } from './services/engines/claude-code';
 
 import type { IpcPushChannel, IpcPushPayload } from '../shared/ipc';
 import { IPC_PUSH } from '../shared/ipc';
@@ -165,6 +168,10 @@ function bridgeEventsToRenderer(): void {
   appEvents.on('environment:changed', ({ status }) =>
     send(IPC_PUSH.environmentChanged, { status }),
   );
+  appEvents.on('chat:updated', (payload) =>
+    send(IPC_PUSH.chatUpdated, payload),
+  );
+  appEvents.on('chat:stream', (payload) => send(IPC_PUSH.chatStream, payload));
 }
 
 export async function bootstrap(): Promise<AppServices> {
@@ -185,6 +192,10 @@ export async function bootstrap(): Promise<AppServices> {
   // available yet, so the real dispatcher is injected below.
   const scheduleModule = createScheduleModule({});
 
+  // Chat runs its own resumable Claude Code session; its runner is injected
+  // below once the MCP server exists (it needs the tool surface + approvals).
+  const chatModule = createChatModule();
+
   const registry = createRegistry({
     modules: [
       approvalsModule,
@@ -196,6 +207,7 @@ export async function bootstrap(): Promise<AppServices> {
       settingsAppModule,
       macosAppModule,
       createDialogModule(),
+      chatModule,
     ],
     db,
     paths,
@@ -219,6 +231,22 @@ export async function bootstrap(): Promise<AppServices> {
   const gate = getApprovalGate();
   gate.registerTools(registry.tools());
   mcp.setApprovalGate(gate);
+
+  // Wire Chat to the same Claude Code adapter + MCP surface the runs use, so a
+  // chat message has the full tool set and hits the same approval gate.
+  const chatAdapter = engines.get(CLAUDE_CODE_ENGINE_ID);
+  if (chatAdapter) {
+    chatModule.configure({
+      runner: createChatSessionRunner({
+        adapter: chatAdapter,
+        mcp,
+        logger: logger.child('chat'),
+        allowedTools: () => registry.tools().map((tool) => tool.name),
+      }),
+    });
+  } else {
+    logger.warn('chat disabled: no claude-code adapter available');
+  }
 
   const orchestrator = createOrchestrator({
     store: getRunStore(),

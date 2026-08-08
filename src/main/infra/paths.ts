@@ -32,6 +32,12 @@ export const SETTINGS_FILENAME = 'settings.json';
 export const ONBOARDING_FILENAME = 'onboarding.json';
 export const MEMORY_DIRNAME = 'memory';
 export const RUNS_DIRNAME = 'runs';
+/**
+ * Where the Chat feature runs its Claude Code sessions (as their cwd). Kept
+ * separate from real project folders so the chat history is self-contained and
+ * never mixed with the user's other `claude` sessions.
+ */
+export const CLAUDE_CHATS_DIRNAME = 'claude-chats';
 export const LOGS_DIRNAME = 'logs';
 export const RUNTIME_DIRNAME = 'runtime';
 export const TMP_DIRNAME = 'tmp';
@@ -53,6 +59,8 @@ export interface WorkspacePaths {
   readonly onboardingFile: string;
   readonly memoryDir: string;
   readonly runsDir: string;
+  /** `claude-chats/` — cwd for the Chat feature's Claude Code sessions. */
+  readonly claudeChatsDir: string;
   readonly logsDir: string;
   readonly runtimeDir: string;
   readonly tmpDir: string;
@@ -123,6 +131,7 @@ export function createWorkspacePaths(override?: string | null): WorkspacePaths {
     onboardingFile: path.join(root, ONBOARDING_FILENAME),
     memoryDir: path.join(root, MEMORY_DIRNAME),
     runsDir,
+    claudeChatsDir: path.join(root, CLAUDE_CHATS_DIRNAME),
     logsDir: path.join(root, LOGS_DIRNAME),
     runtimeDir: path.join(root, RUNTIME_DIRNAME),
     tmpDir: path.join(root, TMP_DIRNAME),
@@ -186,6 +195,7 @@ export async function ensureWorkspace(paths: WorkspacePaths): Promise<void> {
   await Promise.all([
     ensureDir(paths.memoryDir),
     ensureDir(paths.runsDir),
+    ensureDir(paths.claudeChatsDir),
     ensureDir(paths.logsDir),
     ensureDir(paths.tmpDir),
   ]);

@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { IPC_PUSH } from '../../shared/ipc';
 import { subscribe } from '../lib/ipc';
 import { useApprovalsStore } from './approvalsStore';
+import { useChatStore } from './chatStore';
 import { useEnvironmentStore } from './environmentStore';
 import { useOnboardingStore } from './onboardingStore';
 import { useRunsStore } from './runsStore';
@@ -65,6 +66,14 @@ export function connectPushChannels(): () => void {
 
     subscribe(IPC_PUSH.environmentChanged, ({ status }) => {
       useEnvironmentStore.getState().applyPush(status);
+    }),
+
+    subscribe(IPC_PUSH.chatUpdated, (payload) => {
+      useChatStore.getState().applyUpdate(payload);
+    }),
+
+    subscribe(IPC_PUSH.chatStream, (payload) => {
+      useChatStore.getState().applyStreamEvent(payload);
     }),
   ];
 

@@ -197,10 +197,30 @@ app.on('window-all-closed', () => {
   }
 });
 
+// A broken stdout/stderr pipe (the launching terminal closed, the dev parent
+// went away) must never crash the app. Node turns a write to a severed pipe
+// into an EPIPE error event on the stream; swallow it so it can't bubble up as
+// an uncaught exception and pop a crash dialog.
+const ignoreEpipe = (stream: NodeJS.WriteStream) => {
+  stream.on('error', (error: NodeJS.ErrnoException) => {
+    if (error.code === 'EPIPE') return;
+    // Anything else is a real problem — re-surface it.
+    throw error;
+  });
+};
+ignoreEpipe(process.stdout);
+ignoreEpipe(process.stderr);
+
 // Error handlers for uncaught exceptions
-process.on('uncaughtException', (error) => {
-  console.error('UNCAUGHT EXCEPTION:', error);
-  console.error('Stack trace:', error.stack);
+process.on('uncaughtException', (error: NodeJS.ErrnoException) => {
+  // A stray EPIPE (e.g. a log write racing shutdown) is not worth a dialog.
+  if (error?.code === 'EPIPE') return;
+  try {
+    console.error('UNCAUGHT EXCEPTION:', error);
+    console.error('Stack trace:', error.stack);
+  } catch {
+    /* console itself may be on a broken pipe — nothing more we can do */
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {

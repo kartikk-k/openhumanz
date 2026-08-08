@@ -30,6 +30,7 @@ import {
   Monitor,
   PlugZap,
   ScrollText,
+  Search,
   ShieldCheck,
   Timer,
 } from 'lucide-react';
@@ -54,12 +55,14 @@ import {
   Badge,
   Button,
   ConfirmDialog,
+  Input,
   eyebrow,
   mono,
   textMuted,
   textSubtle,
 } from '../../components/ui';
 import { PageHeader } from '../../components/layout/PageHeader';
+import { searchSettings } from './search';
 import { useEnvironmentStore, useSettingsStore } from '../../store';
 import { EnvironmentPanel } from './EnvironmentPanel';
 import { Notice } from './Notice';
@@ -92,31 +95,73 @@ const SECTIONS = [
   { id: 'logging', label: 'Logging', icon: ScrollText },
 ] as const;
 
+const SECTION_ICONS = Object.fromEntries(
+  SECTIONS.map((section) => [section.id, section.icon]),
+);
+
 function scrollToSection(id: string) {
   if (typeof document === 'undefined') return;
-  document
-    .getElementById(id)
-    ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  // A brief highlight so the eye lands on the section it jumped to.
+  el.classList.add('settings-jump-flash');
+  window.setTimeout(() => el.classList.remove('settings-jump-flash'), 1200);
 }
 
+/**
+ * The section rail, now with a fuzzy search over every section and the options
+ * inside it. Typing filters the rail to matches (best first); Enter jumps to
+ * the top match. Clearing the box restores the full rail in reading order.
+ */
 function SectionRail() {
+  const [query, setQuery] = useState('');
+  const results = useMemo(() => searchSettings(query), [query]);
+  const searching = query.trim().length > 0;
+
+  const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>): void => {
+    if (e.key === 'Enter' && results.length > 0) {
+      e.preventDefault();
+      scrollToSection(results[0].entry.id);
+    } else if (e.key === 'Escape') {
+      setQuery('');
+    }
+  };
+
   return (
-    <nav
-      aria-label="Settings sections"
-      className="flex flex-wrap gap-1 border-b border-zinc-200 pb-2 dark:border-zinc-800"
-    >
-      {SECTIONS.map((section) => (
-        <Button
-          key={section.id}
-          size="xs"
-          variant="ghost"
-          icon={section.icon}
-          onClick={() => scrollToSection(section.id)}
-        >
-          {section.label}
-        </Button>
-      ))}
-    </nav>
+    <div className="flex flex-col gap-2 border-b border-zinc-200 pb-2 dark:border-zinc-800">
+      <Input
+        icon={Search}
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={onKeyDown}
+        placeholder="Search settings…  (e.g. dark mode, cron, log retention)"
+        aria-label="Search settings"
+        className="h-8 text-[12.5px]"
+      />
+      <nav aria-label="Settings sections" className="flex flex-wrap gap-1">
+        {searching && results.length === 0 ? (
+          <span className={cn('px-1 py-1 text-[12px]', textMuted)}>
+            No settings match “{query.trim()}”.
+          </span>
+        ) : (
+          results.map(({ entry }) => {
+            const Icon = SECTION_ICONS[entry.id];
+            return (
+              <Button
+                key={entry.id}
+                size="xs"
+                variant="ghost"
+                icon={Icon}
+                onClick={() => scrollToSection(entry.id)}
+              >
+                {entry.label}
+              </Button>
+            );
+          })
+        )}
+      </nav>
+    </div>
   );
 }
 

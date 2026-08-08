@@ -25,6 +25,7 @@ export {
   usePreferredEngine,
 } from './environmentStore';
 export { useOnboardingStore, useShouldOnboard } from './onboardingStore';
+export { useChatStore } from './chatStore';
 export {
   findSeqGaps,
   isRunLive,

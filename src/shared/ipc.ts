@@ -15,6 +15,7 @@
  * parses them, filling defaults. Response types are output types.
  */
 import type { Page } from './common';
+import type { ChatTurn } from './claudeTranscript.fold';
 import type {
   Approval,
   ApprovalAuditEntry,
@@ -144,6 +145,16 @@ export const IPC = {
   dialog: {
     pickDirectory: 'dialog:pick-directory',
   },
+  chat: {
+    sessions: 'chat:sessions',
+    transcript: 'chat:transcript',
+    send: 'chat:send',
+    newSession: 'chat:new',
+    selectSession: 'chat:select',
+    cancel: 'chat:cancel',
+    subscribe: 'chat:subscribe',
+    unsubscribe: 'chat:unsubscribe',
+  },
   // `satisfies` makes drift between this map and IpcContract a compile error.
 } as const satisfies Record<string, Record<string, IpcChannel>>;
 
@@ -163,6 +174,8 @@ export const IPC_PUSH = {
   memoryDocChanged: 'push:memory-doc-changed',
   settingsChanged: 'push:settings-changed',
   environmentChanged: 'push:environment-changed',
+  chatUpdated: 'push:chat-updated',
+  chatStream: 'push:chat-stream',
 } as const satisfies Record<string, IpcPushChannel>;
 
 /* ------------------------------------------------------------------ */
@@ -316,6 +329,107 @@ export interface IpcContract {
     request: DirectoryPickRequest;
     response: DirectoryPickResult;
   };
+
+  /* chat ---------------------------------------------------------- */
+  'chat:sessions': { request: Empty; response: ChatSessionList };
+  'chat:transcript': {
+    request: ChatTranscriptRequest;
+    response: ChatTranscript;
+  };
+  'chat:send': { request: ChatSendRequest; response: ChatSendAck };
+  'chat:new': { request: Empty; response: ChatSessionRef };
+  'chat:select': { request: ChatSelectRequest; response: ChatSessionRef };
+  'chat:cancel': { request: Empty; response: Ack };
+  'chat:subscribe': { request: Empty; response: Ack };
+  'chat:unsubscribe': { request: Empty; response: Ack };
+}
+
+/**
+ * A live event streamed from a chat turn as it runs, so the UI can render the
+ * response token-by-token, show tool calls the moment they happen, and surface
+ * subagent activity in real time. This is a UI-facing normalization of the
+ * engine's event stream — the transcript file remains the durable record.
+ */
+export type ChatStreamEvent =
+  /** A chunk of assistant prose. `partial` chunks accumulate; a non-partial is
+   *  the complete block for that message. */
+  | { kind: 'text'; text: string; partial: boolean; subagent?: string }
+  /** A chunk of extended thinking. Same accumulation rule as text. */
+  | { kind: 'thinking'; text: string; partial: boolean; subagent?: string }
+  /** The assistant invoked a tool. */
+  | {
+      kind: 'tool-call';
+      id: string;
+      name: string;
+      input: unknown;
+      subagent?: string;
+    }
+  /** A tool returned. Matched to its call by id. */
+  | {
+      kind: 'tool-result';
+      id: string;
+      ok: boolean;
+      text: string;
+      subagent?: string;
+    }
+  /** A subagent (Task tool) started; `id` is its parent tool-call id. */
+  | { kind: 'subagent-start'; id: string; name: string }
+  /** A subagent finished — the UI can collapse its live steps into the call. */
+  | { kind: 'subagent-end'; id: string }
+  /** The turn ended. `ok=false` carries an error message. */
+  | { kind: 'done'; ok: boolean; error?: string };
+
+/** One chat session's identity and summary, for the session list. */
+export interface ChatSessionSummary {
+  sessionId: string;
+  /** ai-title from the transcript, else a derived first-line title. */
+  title: string | null;
+  updatedMs: number;
+  /** Rough message count, for the list. */
+  messageCount: number;
+}
+
+export interface ChatSessionList {
+  sessions: ChatSessionSummary[];
+  /** The session the UI should show — the resumed/last-active one. */
+  currentSessionId: string | null;
+}
+
+export interface ChatSessionRef {
+  currentSessionId: string | null;
+}
+
+export interface ChatTranscriptRequest {
+  /** Omit to read the current session. */
+  sessionId?: string;
+}
+
+/**
+ * A session's folded transcript. `turns` is `ChatTurn[]` from the shared
+ * transcript parser; typed as unknown-ish here to keep this contract file free
+ * of a parser import cycle — the chat store casts it to the parser's type.
+ */
+export interface ChatTranscript {
+  sessionId: string | null;
+  title: string | null;
+  turns: ChatTurn[];
+  /** True while a turn is streaming for this session. */
+  busy: boolean;
+}
+
+export interface ChatSendRequest {
+  prompt: string;
+  /** Omit to continue the current session; the module resolves which. */
+  sessionId?: string;
+}
+
+export interface ChatSendAck {
+  sessionId: string | null;
+  accepted: boolean;
+}
+
+export interface ChatSelectRequest {
+  sessionId: string;
 }
 
 /** Options for the native directory picker. All fields optional. */
@@ -372,6 +486,16 @@ export interface IpcPushContract {
   'push:memory-doc-changed': { path: string; deleted: boolean };
   'push:settings-changed': { settings: Settings };
   'push:environment-changed': { status: EnvironmentStatus };
+  /** A chat session's transcript changed (new content) or its busy state
+   *  flipped. The renderer re-reads `chat:transcript` for the session. */
+  'push:chat-updated': {
+    sessionId: string | null;
+    busy: boolean;
+    /** True when the set of sessions changed (new/selected). */
+    sessionsChanged?: boolean;
+  };
+  /** A live event from the running chat turn, for token-level streaming. */
+  'push:chat-stream': { sessionId: string | null; event: ChatStreamEvent };
 }
 
 export type IpcPushChannel = keyof IpcPushContract;

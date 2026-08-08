@@ -21,6 +21,7 @@ import type { Run, RunEvent, RunStatus } from '../../shared/runs';
 import type { EnvironmentStatus } from '../../shared/engines';
 import type { MemoryIndexStatus } from '../../shared/memory';
 import type { Settings } from '../../shared/settings';
+import type { ChatStreamEvent } from '../../shared/ipc';
 
 /** Event name -> payload. The complete cross-module vocabulary. */
 export interface AppEvents {
@@ -52,6 +53,15 @@ export interface AppEvents {
   /* environment */
   'settings:changed': { settings: Settings };
   'environment:changed': { status: EnvironmentStatus };
+
+  /* chat */
+  'chat:updated': {
+    sessionId: string | null;
+    busy: boolean;
+    sessionsChanged?: boolean;
+  };
+  /** A live event from a running chat turn, forwarded to the UI for streaming. */
+  'chat:stream': { sessionId: string | null; event: ChatStreamEvent };
 
   /* lifecycle */
   'module:started': { id: string };
