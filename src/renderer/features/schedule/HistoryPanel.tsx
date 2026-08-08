@@ -97,7 +97,7 @@ export function HistoryPanel({
     { refetchOn: [IPC_PUSH.scheduleChanged] },
   );
 
-  const records = history.data?.items ?? [];
+  const records = useMemo(() => history.data?.items ?? [], [history.data]);
 
   // Counted over what is loaded, and labelled as such — a rolling window is
   // honest here, an implied all-time total would not be.

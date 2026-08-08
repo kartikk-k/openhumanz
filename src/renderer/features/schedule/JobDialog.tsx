@@ -79,13 +79,15 @@ const PRESETS: readonly { label: string; cron: string }[] = [
   { label: 'Mondays 08:00', cron: '0 8 * * 1' },
 ];
 
-const CONDITION_OPTIONS: readonly { value: ScheduleConditionKind; label: string }[] =
-  [
-    { value: 'always', label: 'Always — no gate' },
-    { value: 'file-changed', label: 'Only when a file has changed' },
-    { value: 'counter-changed', label: 'Only when a counter has moved' },
-    { value: 'time-window', label: 'Only inside a time window' },
-  ];
+const CONDITION_OPTIONS: readonly {
+  value: ScheduleConditionKind;
+  label: string;
+}[] = [
+  { value: 'always', label: 'Always — no gate' },
+  { value: 'file-changed', label: 'Only when a file has changed' },
+  { value: 'counter-changed', label: 'Only when a counter has moved' },
+  { value: 'time-window', label: 'Only inside a time window' },
+];
 
 const WEEKDAYS = [
   { value: 0, label: 'Sun' },
@@ -208,7 +210,10 @@ function draftProblem(draft: Draft): string | null {
   if (draft.conditionKind === 'file-changed' && !draft.filePath.trim()) {
     return 'Name the file to watch.';
   }
-  if (draft.conditionKind === 'counter-changed' && !draft.counterSource.trim()) {
+  if (
+    draft.conditionKind === 'counter-changed' &&
+    !draft.counterSource.trim()
+  ) {
     return 'Name the counter to watch.';
   }
   if (
@@ -270,7 +275,9 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
   const stale = draft.cron.trim() !== trimmedCron;
   const cronUnverifiable = Boolean(validation.error);
   const cronRejected =
-    !cronUnverifiable && validation.data !== undefined && !validation.data.valid;
+    !cronUnverifiable &&
+    validation.data !== undefined &&
+    !validation.data.valid;
   const cronConfirmed =
     !cronUnverifiable &&
     !stale &&
@@ -376,9 +383,14 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
           <div className="min-w-0 flex-1">
             {cronConfirmed ? (
               <p className="flex items-center gap-1.5 truncate text-[12px] text-emerald-700 dark:text-emerald-400">
-                <CheckCircle2 size={13} aria-hidden="true" className="shrink-0" />
+                <CheckCircle2
+                  size={13}
+                  aria-hidden="true"
+                  className="shrink-0"
+                />
                 <span className="truncate">
-                  Saves as: {validation.data?.humanReadable || draft.cron.trim()}
+                  Saves as:{' '}
+                  {validation.data?.humanReadable || draft.cron.trim()}
                 </span>
               </p>
             ) : (
@@ -489,7 +501,8 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
             <p className={eyebrow}>Only run when</p>
             <p className={cn('mt-1 text-[12px] leading-relaxed', textMuted)}>
               Checked before anything is spawned. This is what keeps a recurring
-              job from spending a weekly quota on occurrences with nothing to do.
+              job from spending a weekly quota on occurrences with nothing to
+              do.
             </p>
           </div>
 
@@ -507,11 +520,15 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
 
           {draft.conditionKind === 'always' ? (
             <p className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12.5px] leading-relaxed text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-              <AlertTriangle size={14} className="mt-0.5 shrink-0" aria-hidden="true" />
+              <AlertTriangle
+                size={14}
+                className="mt-0.5 shrink-0"
+                aria-hidden="true"
+              />
               <span>
-                No gate. Every occurrence spawns the engine, whether or not there
-                is anything to do — a 15-minute unconditional job is roughly 2,900
-                runs a month.
+                No gate. Every occurrence spawns the engine, whether or not
+                there is anything to do — a 15-minute unconditional job is
+                roughly 2,900 runs a month.
               </span>
             </p>
           ) : null}
@@ -566,10 +583,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
                   }
                 />
               </div>
-              <Field
-                label="Weekdays"
-                hint="None selected means every day."
-              >
+              <Field label="Weekdays" hint="None selected means every day.">
                 <div className="flex flex-wrap gap-1">
                   {WEEKDAYS.map((day) => {
                     const on = draft.weekdays.includes(day.value);

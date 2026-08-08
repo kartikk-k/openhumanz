@@ -73,8 +73,24 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
   const revokeGrant = useApprovalsStore((state) => state.revokeGrant);
   const bridgeDown = useApprovalsStore((state) => state.unavailable);
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * Has the gate answered about grants yet?
+   *
+   * Seeded from what the slice already knows instead of starting at "loading",
+   * so the panel never puts a spinner in front of grants it is already holding,
+   * and never prints "you have not said always to anything" before anyone
+   * looked. Both of those are the same mistake as an empty queue behind a dead
+   * bridge: a state of the reader rendered as a fact about the user.
+   */
+  const [read, setRead] = useState<'unread' | 'read' | 'failed'>(() => {
+    const state = useApprovalsStore.getState();
+    if (state.grants.length > 0 || state.loadedAt) return 'read';
+    return state.error ? 'failed' : 'unread';
+  });
+  const [failure, setFailure] = useState<string | null>(
+    () => useApprovalsStore.getState().error,
+  );
+  const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState<GrantFilter>('all');
   const [target, setTarget] = useState<ApprovalGrant | null>(null);
 
@@ -85,16 +101,18 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
    * honest signal, and it is the only one the store gives us without editing it.
    */
   const refresh = useCallback(async () => {
-    setLoading(true);
+    setBusy(true);
     const before = useApprovalsStore.getState().grants;
     await loadGrants();
     const after = useApprovalsStore.getState();
-    setLoading(false);
-    setError(
-      after.grants === before
-        ? (after.error ?? 'The grants channel did not answer.')
-        : null,
-    );
+    setBusy(false);
+    if (after.grants === before) {
+      setRead('failed');
+      setFailure(after.error ?? 'The grants channel did not answer.');
+    } else {
+      setRead('read');
+      setFailure(null);
+    }
   }, [loadGrants]);
 
   useEffect(() => {
@@ -136,7 +154,7 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
     [revokeGrant],
   );
 
-  if (loading && grants.length === 0) {
+  if (read === 'unread' && grants.length === 0) {
     return (
       <div
         className={cn(
@@ -151,11 +169,11 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
     );
   }
 
-  if (error && grants.length === 0) {
+  if (read === 'failed' && grants.length === 0) {
     return (
       <ChannelNotice
         className={className}
-        message={error}
+        message={failure ?? 'The grants channel did not answer.'}
         unavailable={bridgeDown}
         what="your standing grants"
         onRetry={() => {

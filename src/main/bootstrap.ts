@@ -10,8 +10,6 @@
  *
  * Order is load-bearing and is called out where it matters.
  */
-import { BrowserWindow } from 'electron';
-
 import type { WorkspacePaths } from './infra/paths';
 import {
   createWorkspacePaths,
@@ -66,13 +64,29 @@ export interface AppServices {
   shutdown(): Promise<void>;
 }
 
-/** Broadcast to every open window. Nothing here targets a specific one. */
+/**
+ * Broadcast to every open window.
+ *
+ * Electron is required lazily, exactly as `createElectronIpcBinder()` does it,
+ * so the whole backend can be booted headlessly under a plain node/bun runtime
+ * for testing. Outside Electron this degrades to a no-op rather than throwing.
+ */
 function send<C extends IpcPushChannel>(
   channel: C,
   payload: IpcPushPayload<C>,
   senderIds?: readonly number[],
 ): void {
-  for (const win of BrowserWindow.getAllWindows()) {
+  let windows: Array<{
+    isDestroyed(): boolean;
+    webContents: { id: number; send(channel: string, payload: unknown): void };
+  }>;
+  try {
+    // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+    windows = require('electron').BrowserWindow.getAllWindows();
+  } catch {
+    return;
+  }
+  for (const win of windows) {
     if (win.isDestroyed()) continue;
     if (senderIds && !senderIds.includes(win.webContents.id)) continue;
     win.webContents.send(channel, payload);

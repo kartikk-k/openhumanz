@@ -103,7 +103,8 @@ function weekdayList(days: readonly number[]): string {
   if (days.length === 0) return 'every day';
   const sorted = [...new Set(days)].sort((a, b) => a - b);
   const contiguous =
-    sorted.length > 2 && sorted[sorted.length - 1] - sorted[0] === sorted.length - 1;
+    sorted.length > 2 &&
+    sorted[sorted.length - 1] - sorted[0] === sorted.length - 1;
   if (contiguous) {
     return `${WEEKDAY_NAMES[sorted[0]]}–${WEEKDAY_NAMES[sorted[sorted.length - 1]]}`;
   }
@@ -242,11 +243,15 @@ export function OutcomeLine({
  * evaluation's own verdict, which is exactly what the user needs to see: the
  * error, or the reason the gate held, or the fact that a run was handed off.
  */
-export function lastOutputPreview(record: ScheduleRunRecord | undefined): string {
+export function lastOutputPreview(
+  record: ScheduleRunRecord | undefined,
+): string {
   if (!record) return '';
   if (record.error) return record.error;
   if (record.conditionReason) return record.conditionReason;
-  return record.conditionPassed ? 'Dispatched a run.' : 'Condition did not pass.';
+  return record.conditionPassed
+    ? 'Dispatched a run.'
+    : 'Condition did not pass.';
 }
 
 /* ------------------------------------------------------------------ */
@@ -346,9 +351,7 @@ export function DetailRow({
 }) {
   return (
     <div className={cn('flex gap-3 py-1', className)}>
-      <span
-        className={cn('w-24 shrink-0 text-[11px] leading-5', textMuted)}
-      >
+      <span className={cn('w-24 shrink-0 text-[11px] leading-5', textMuted)}>
         {label}
       </span>
       <span className="min-w-0 flex-1 text-[12.5px] leading-5 text-zinc-700 dark:text-zinc-300">
