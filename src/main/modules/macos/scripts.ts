@@ -29,10 +29,7 @@ import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { APPLE_APPS, type AppleAppId } from './apps';
-import {
-  renderScript,
-  type PlaceholderKinds,
-} from './escape';
+import { renderScript, type PlaceholderKinds } from './escape';
 
 /** Override the directory holding the `.applescript` files. Tests, packaging. */
 export const SCRIPTS_DIR_ENV_VAR = 'ASSISTANT_MACOS_SCRIPTS_DIR';
@@ -118,7 +115,9 @@ function hereDir(): string {
  * asar). `<here>/scripts` is the source tree, which is what a plain `bun`
  * script or a jest run sees.
  */
-export function scriptDirCandidates(extraDirs: readonly string[] = []): string[] {
+export function scriptDirCandidates(
+  extraDirs: readonly string[] = [],
+): string[] {
   const candidates: string[] = [];
   const fromEnv = process.env[SCRIPTS_DIR_ENV_VAR];
   if (fromEnv) candidates.push(fromEnv);
@@ -153,7 +152,8 @@ function isFile(target: string): boolean {
 export function resolveScriptDir(extraDirs: readonly string[] = []): string {
   const candidates = scriptDirCandidates(extraDirs);
   for (const dir of candidates) {
-    if (isFile(path.join(dir, `${PRELUDE_NAME}${SCRIPT_EXTENSION}`))) return dir;
+    if (isFile(path.join(dir, `${PRELUDE_NAME}${SCRIPT_EXTENSION}`)))
+      return dir;
   }
   throw new Error(
     `Could not locate the macOS AppleScript assets. Set ${SCRIPTS_DIR_ENV_VAR}, ` +
@@ -236,7 +236,7 @@ export interface MaterializedScript {
  * churn the directory.
  */
 export class ScriptStore {
-  private readonly targetDir: string;
+  private targetDir: string;
 
   private readonly sourceDirs: readonly string[];
 
@@ -249,8 +249,7 @@ export class ScriptStore {
   constructor(options: ScriptStoreOptions) {
     this.targetDir = options.targetDir;
     this.sourceDirs = options.sourceDirs ?? [];
-    this.appIds =
-      options.appIds ?? (Object.keys(APPLE_APPS) as AppleAppId[]);
+    this.appIds = options.appIds ?? (Object.keys(APPLE_APPS) as AppleAppId[]);
   }
 
   get prepared(): boolean {
@@ -259,6 +258,21 @@ export class ScriptStore {
 
   get directory(): string {
     return this.targetDir;
+  }
+
+  /**
+   * Point at the real workspace directory.
+   *
+   * The store is constructed before `start()` — the module's `tools` array has
+   * to exist for the registry to collect it — but the workspace path only
+   * arrives with the module context. Changing the target discards anything
+   * already materialised, so `prepare()` must run again.
+   */
+  setTargetDir(directory: string): void {
+    if (directory === this.targetDir) return;
+    this.targetDir = directory;
+    this.entries = new Map();
+    this.ready = false;
   }
 
   /** Read, compose and write every script. Safe to call repeatedly. */
@@ -306,7 +320,10 @@ export class ScriptStore {
           needsWrite = true;
         }
         if (needsWrite) {
-          await fsp.writeFile(filePath, text, { encoding: 'utf8', mode: 0o600 });
+          await fsp.writeFile(filePath, text, {
+            encoding: 'utf8',
+            mode: 0o600,
+          });
           await fsp.chmod(filePath, 0o600).catch(() => undefined);
         }
 
@@ -331,7 +348,9 @@ export class ScriptStore {
   /** Absolute path for a script, or a clear error if `prepare()` has not run. */
   pathFor(name: string, appId?: AppleAppId): string {
     const spec = scriptSpec(name);
-    const entry = this.entries.get(scriptKey(name, spec.perApp ? appId : undefined));
+    const entry = this.entries.get(
+      scriptKey(name, spec.perApp ? appId : undefined),
+    );
     if (!entry) {
       throw new Error(
         this.ready
@@ -350,9 +369,9 @@ export class ScriptStore {
   async cleanup(): Promise<void> {
     this.entries = new Map();
     this.ready = false;
-    await fsp.rm(this.targetDir, { recursive: true, force: true }).catch(
-      () => undefined,
-    );
+    await fsp
+      .rm(this.targetDir, { recursive: true, force: true })
+      .catch(() => undefined);
   }
 }
 

@@ -141,21 +141,26 @@ export function Notice({
  * verbatim looks like a bug.
  */
 export function Ticks({ text }: { text: string }) {
-  const parts = text.split('`');
+  // Keys are built here rather than in the JSX so they are stable identities
+  // rather than positions — split output is deterministic for a given string.
+  const parts = text.split('`').map((value, position) => ({
+    value,
+    code: position % 2 === 1,
+    key: `${position}:${value}`,
+  }));
+
   return (
     <>
-      {parts.map((part, index) =>
-        index % 2 === 1 ? (
-          // eslint-disable-next-line react/no-array-index-key
+      {parts.map((part) =>
+        part.code ? (
           <code
-            key={`${index}-${part}`}
+            key={part.key}
             className="rounded bg-zinc-900/[0.06] px-1 py-px font-mono text-[11.5px] text-zinc-800 dark:bg-white/10 dark:text-zinc-200"
           >
-            {part}
+            {part.value}
           </code>
         ) : (
-          // eslint-disable-next-line react/no-array-index-key
-          <span key={`${index}-plain`}>{part}</span>
+          <span key={part.key}>{part.value}</span>
         ),
       )}
     </>

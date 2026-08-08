@@ -9,7 +9,7 @@
  * confirm.
  */
 import { FolderTree, HardDrive } from 'lucide-react';
-import { SettingsSchema } from '../../../shared/settings';
+import { SettingsSchema, type SettingsPatch } from '../../../shared/settings';
 import { DEFAULT_WORKSPACE_HINT } from '../../constants';
 import { cn } from '../../lib/utils';
 import { mono, textMuted, textSubtle } from '../../components/ui/styles';
@@ -24,7 +24,10 @@ const CONTENTS: readonly { path: string; what: string }[] = [
     path: 'assistant.db',
     what: 'Runs, tasks, goals, schedules, approval decisions, memory index.',
   },
-  { path: 'memory/', what: 'The vault — Markdown files you can edit yourself.' },
+  {
+    path: 'memory/',
+    what: 'The vault — Markdown files you can edit yourself.',
+  },
   {
     path: 'runs/<runId>/',
     what: 'transcript.jsonl and stderr.log for every run.',
@@ -40,6 +43,9 @@ export function WorkspaceStep() {
   const settings = useSettingsStore((state) => state.settings);
   const { write, canWrite, saving, blockedReason } = useSettingsWriter();
   const resolved = settings.workspaceRoot || DEFAULT_WORKSPACE_HINT;
+  const save = (patch: SettingsPatch, label: string): void => {
+    void write(patch, label);
+  };
 
   return (
     <>
@@ -52,9 +58,7 @@ export function WorkspaceStep() {
         value={settings.workspaceRoot}
         schema={SettingsSchema.shape.workspaceRoot}
         disabled={!canWrite || saving}
-        onCommit={(value) =>
-          void write({ workspaceRoot: value }, 'Workspace folder')
-        }
+        onCommit={(value) => save({ workspaceRoot: value }, 'Workspace folder')}
       />
 
       {blockedReason ? (

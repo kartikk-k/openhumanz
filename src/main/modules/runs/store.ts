@@ -128,6 +128,8 @@ export interface StepPatch {
   summary?: string | null;
   error?: string | null;
   failureKind?: FailureKind | null;
+  /** Shallow-merged into the existing metadata, same as {@link RunPatch}. */
+  metadata?: JsonObject;
 }
 
 export interface CreateToolCallInput {
@@ -615,6 +617,16 @@ export function createRunStore(options: RunStoreOptions): RunStore {
         values.failureKind = patch.failureKind ?? null;
       if ('usage' in patch) {
         values.usageJson = patch.usage ? JSON.stringify(patch.usage) : null;
+      }
+      if (patch.metadata) {
+        const current = db.get(
+          'SELECT metadata_json FROM runs_step WHERE id = ?',
+          [id],
+        );
+        values.metadataJson = JSON.stringify({
+          ...parseJson<JsonObject>(current?.metadata_json, {}),
+          ...patch.metadata,
+        });
       }
 
       const { clause, params } = buildAssignments(STEP_COLUMNS, values);

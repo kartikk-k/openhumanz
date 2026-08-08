@@ -32,7 +32,14 @@ export interface TreeFolder {
 export type TreeNode = TreeFolder | TreeFile;
 
 function emptyFolder(path: string, name: string): TreeFolder {
-  return { kind: 'folder', path, name, children: [], fileCount: 0, sizeBytes: 0 };
+  return {
+    kind: 'folder',
+    path,
+    name,
+    children: [],
+    fileCount: 0,
+    sizeBytes: 0,
+  };
 }
 
 /** Folders first, then files; each group alphabetical and case-insensitive. */
@@ -214,7 +221,10 @@ export interface PathCheck {
  * the copy that can say *why* before anything is written to disk.
  */
 export function checkVaultPath(raw: string): PathCheck {
-  const value = raw.trim().replace(/^\.?\/+/, '').replace(/\\/g, '/');
+  const value = raw
+    .trim()
+    .replace(/^\.?\/+/, '')
+    .replace(/\\/g, '/');
   if (!value) return { ok: false, value, error: 'A file name is required.' };
   if (value.length > 240) {
     return { ok: false, value, error: 'That path is too long.' };
@@ -228,14 +238,26 @@ export function checkVaultPath(raw: string): PathCheck {
     };
   }
   if (segments.some((segment) => segment === '')) {
-    return { ok: false, value, error: 'A path cannot contain an empty folder.' };
+    return {
+      ok: false,
+      value,
+      error: 'A path cannot contain an empty folder.',
+    };
   }
   // eslint-disable-next-line no-control-regex
   if (/[\u0000-\u001f:*?"<>|]/.test(value)) {
-    return { ok: false, value, error: 'That path contains illegal characters.' };
+    return {
+      ok: false,
+      value,
+      error: 'That path contains illegal characters.',
+    };
   }
   if (!/\.mdx?$/i.test(value)) {
-    return { ok: false, value, error: 'The vault holds Markdown — end with `.md`.' };
+    return {
+      ok: false,
+      value,
+      error: 'The vault holds Markdown — end with `.md`.',
+    };
   }
   return { ok: true, value };
 }

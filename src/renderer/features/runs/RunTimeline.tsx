@@ -91,9 +91,9 @@ export function RunTimeline({
 }: RunTimelineProps) {
   const showCosts = useShowCosts();
 
-  const [openKeys, setOpenKeys] = useState<ReadonlySet<string>>(
-    () => new Set<string>(),
-  );
+  // `null` means "the user has not touched this yet", which is different from
+  // "everything is closed" — see `open` below.
+  const [openKeys, setOpenKeys] = useState<ReadonlySet<string> | null>(null);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(
     () => new Set<string>(),
   );
@@ -102,6 +102,17 @@ export function RunTimeline({
   const [pendingBelow, setPendingBelow] = useState(false);
 
   /* --- which steps start open ------------------------------------- */
+
+  /**
+   * Derived at render time, not seeded in an effect: the running step has to be
+   * open on the *first* paint. Seeding after mount means a frame of
+   * everything-collapsed followed by a jump, which on a live run reads as a
+   * glitch.
+   */
+  const open = useMemo(
+    () => openKeys ?? defaultOpenKeys(model),
+    [openKeys, model],
+  );
 
   const seeded = useRef(false);
   const known = useRef<Set<string>>(new Set());
@@ -112,6 +123,8 @@ export function RunTimeline({
     if (!seeded.current) {
       seeded.current = true;
       known.current = new Set(model.steps.map((step) => step.key));
+      // Freeze the derived set so later steps finishing cannot re-close what
+      // the user is reading.
       setOpenKeys(defaultOpenKeys(model));
       return;
     }
@@ -128,19 +141,22 @@ export function RunTimeline({
     });
     if (opening.length === 0) return;
     setOpenKeys((previous) => {
-      const next = new Set(previous);
+      const next = new Set(previous ?? []);
       opening.forEach((key) => next.add(key));
       return next;
     });
   }, [model]);
 
-  const toggleStep = useCallback((key: string) => {
-    setOpenKeys((previous) => {
-      const next = new Set(previous);
-      if (!next.delete(key)) next.add(key);
-      return next;
-    });
-  }, []);
+  const toggleStep = useCallback(
+    (key: string) => {
+      setOpenKeys((previous) => {
+        const next = new Set(previous ?? open);
+        if (!next.delete(key)) next.add(key);
+        return next;
+      });
+    },
+    [open],
+  );
 
   const toggleEntry = useCallback((id: string) => {
     setExpanded((previous) => {
@@ -161,8 +177,8 @@ export function RunTimeline({
   /* --- rows -------------------------------------------------------- */
 
   const rows = useMemo(
-    () => flattenTimeline(model, { open: openKeys, hideChatter }),
-    [model, openKeys, hideChatter],
+    () => flattenTimeline(model, { open, hideChatter }),
+    [model, open, hideChatter],
   );
 
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -173,6 +189,9 @@ export function RunTimeline({
     estimateSize: (index) => estimateRowSize(rows[index]),
     getItemKey: (index) => rows[index].key,
     overscan: 10,
+    // A sensible window before the ResizeObserver reports, so the first
+    // paint is real rows rather than an empty box.
+    initialRect: { width: 0, height: 640 },
   });
 
   /* --- follow-the-tail, but only if the user is already there ------ */
@@ -289,7 +308,12 @@ export function RunTimeline({
               disk.
             </p>
           </div>
-          <Button size="xs" variant="outline" icon={RefreshCw} onClick={onReload}>
+          <Button
+            size="xs"
+            variant="outline"
+            icon={RefreshCw}
+            onClick={onReload}
+          >
             Reload
           </Button>
         </div>

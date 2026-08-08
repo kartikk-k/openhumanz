@@ -13,7 +13,11 @@
  *  - flatten tool calls into prose. A tool call keeps its arguments and its
  *    result as data so the UI can show a summary and expand to raw JSON.
  */
-import type { Approval, ApprovalDecision, ApprovalScope } from '../../../shared/approvals';
+import type {
+  Approval,
+  ApprovalDecision,
+  ApprovalScope,
+} from '../../../shared/approvals';
 import type { LogLevel, Usage } from '../../../shared/common';
 import type {
   Run,
@@ -151,7 +155,16 @@ export function sumUsage(parts: (Usage | undefined)[]): Usage | undefined {
   if (present.length === 0) return undefined;
 
   const total: Usage = {};
-  const add = (key: 'inputTokens' | 'outputTokens' | 'cacheReadTokens' | 'cacheCreationTokens' | 'totalCostUsd' | 'durationMs' | 'turns') => {
+  const add = (
+    key:
+      | 'inputTokens'
+      | 'outputTokens'
+      | 'cacheReadTokens'
+      | 'cacheCreationTokens'
+      | 'totalCostUsd'
+      | 'durationMs'
+      | 'turns',
+  ) => {
     const values = present
       .map((part) => part[key])
       .filter((value): value is number => typeof value === 'number');
@@ -258,7 +271,8 @@ export function buildTimeline(
       case 'step.started': {
         const step = stepFor(event.step.id);
         mergeStep(step, event.step);
-        if (step.firstSeq === Number.MAX_SAFE_INTEGER) step.firstSeq = event.seq;
+        if (step.firstSeq === Number.MAX_SAFE_INTEGER)
+          step.firstSeq = event.seq;
         currentKey = event.step.id;
         break;
       }
@@ -361,7 +375,8 @@ export function buildTimeline(
       const errorCount = entries.filter(
         (entry) =>
           (entry.kind === 'tool' &&
-            (entry.call.status === 'failed' || entry.call.status === 'denied')) ||
+            (entry.call.status === 'failed' ||
+              entry.call.status === 'denied')) ||
           (entry.kind === 'log' && entry.level === 'error'),
       ).length;
       return {

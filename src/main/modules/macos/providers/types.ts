@@ -186,7 +186,10 @@ export interface MailOps {
   unreadCount(
     input: { mailbox: string },
     ctx: OpContext,
-  ): Promise<{ total: number; byAccount: { account: string; unread: number }[] }>;
+  ): Promise<{
+    total: number;
+    byAccount: { account: string; unread: number }[];
+  }>;
   /**
    * Creates a draft and opens it. Never sends: there is no send operation on
    * this interface, so no provider can offer one and no tool can reach one.
@@ -260,7 +263,11 @@ export interface NotesOps {
       searchBodies: boolean;
     },
     ctx: OpContext,
-  ): Promise<{ notes: NoteSummary[]; scanned: number; bodiesSearched: boolean }>;
+  ): Promise<{
+    notes: NoteSummary[];
+    scanned: number;
+    bodiesSearched: boolean;
+  }>;
   note(
     input: { ref: ItemRef; maxChars: number },
     ctx: OpContext,

@@ -164,7 +164,12 @@ export function RunCostMeter({
       {showCosts && ceiling > 0 ? (
         <div className="mt-2.5">
           <Bar fraction={fraction} tone={tone} />
-          <p className={cn('mt-1 flex items-center gap-1.5 text-[11px]', textMuted)}>
+          <p
+            className={cn(
+              'mt-1 flex items-center gap-1.5 text-[11px]',
+              textMuted,
+            )}
+          >
             <Gauge size={11} aria-hidden="true" />
             <span className="tabular-nums">
               {formatCost(spend ?? 0)} of the {formatCost(ceiling)} per-run
@@ -198,8 +203,7 @@ export function SpendSummary({ runs, className }: SpendSummaryProps) {
   const showCosts = useShowCosts();
 
   const total = useMemo(
-    () =>
-      runs.reduce((sum, run) => sum + (run.usage?.totalCostUsd ?? 0), 0),
+    () => runs.reduce((sum, run) => sum + (run.usage?.totalCostUsd ?? 0), 0),
     [runs],
   );
   const counted = useMemo(

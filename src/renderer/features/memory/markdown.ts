@@ -129,6 +129,9 @@ export interface ParsedMarkdown {
 /* URL safety                                                          */
 /* ------------------------------------------------------------------ */
 
+// Matching control characters is the point: inside a URL they are always an
+// attempt to smuggle something past a scheme check.
+// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
 const SCHEME = /^([a-zA-Z][a-zA-Z0-9+.-]*):/;
 const ALLOWED_SCHEMES = new Set(['http', 'https', 'mailto']);
@@ -160,10 +163,7 @@ export function safeHref(raw: string): string | null {
  * link that climbs out of the vault, or points at something that is not a
  * `.md` file, returns `null` and renders as plain text.
  */
-export function resolveDocLink(
-  href: string,
-  fromPath: string,
-): string | null {
+export function resolveDocLink(href: string, fromPath: string): string | null {
   const target = href.trim().split('#')[0].split('?')[0];
   if (!target || CONTROL_CHARS.test(target)) return null;
   if (SCHEME.test(target)) return null;
@@ -351,7 +351,8 @@ export function parseInline(
     // Inline link: [label](target)
     if (ch === '[') {
       const labelEnd = findClosing(source, i + 1, '](', ctx);
-      const targetEnd = labelEnd === -1 ? -1 : findLinkEnd(source, labelEnd + 2);
+      const targetEnd =
+        labelEnd === -1 ? -1 : findLinkEnd(source, labelEnd + 2);
       if (labelEnd !== -1 && targetEnd !== -1) {
         const label = source.slice(i + 1, labelEnd);
         // A Markdown title (`(url "title")`) is dropped, not rendered.
@@ -361,9 +362,10 @@ export function parseInline(
         if (href || doc) {
           flush();
           const children = parseInline(label, fromPath, depth + 1);
-          const text = children.length > 0 ? children : [
-            { kind: 'text' as const, value: target },
-          ];
+          const text =
+            children.length > 0
+              ? children
+              : [{ kind: 'text' as const, value: target }];
           nodes.push(
             href
               ? { kind: 'link', href, children: text }
@@ -542,7 +544,10 @@ function parseList(cursor: Cursor, fromPath: string): Block | null {
     if (match) {
       const task = TASK_RE.exec(match[3]);
       items.push({
-        depth: Math.min(3, Math.floor(match[1].replace(/\t/g, '  ').length / 2)),
+        depth: Math.min(
+          3,
+          Math.floor(match[1].replace(/\t/g, '  ').length / 2),
+        ),
         checked: task ? task[1].toLowerCase() === 'x' : null,
         inline: parseInline(clip(task ? task[2] : match[3]), fromPath),
         startLine: lineNo(cursor, i),
@@ -705,10 +710,7 @@ function parseLines(
  * `fromPath` is the doc's vault-relative path; it is only used to resolve
  * relative links to other notes.
  */
-export function parseMarkdown(
-  source: string,
-  fromPath = '',
-): ParsedMarkdown {
+export function parseMarkdown(source: string, fromPath = ''): ParsedMarkdown {
   const allLines = source.split('\n');
   const capped = allLines.length > MAX_LINES;
   const lines = capped ? allLines.slice(0, MAX_LINES) : allLines;
@@ -728,8 +730,8 @@ export function parseMarkdown(
   }
 
   const outline = blocks
-    .filter((block): block is Block & { kind: 'heading' } =>
-      block.kind === 'heading',
+    .filter(
+      (block): block is Block & { kind: 'heading' } => block.kind === 'heading',
     )
     .map((block) => ({
       level: block.level,

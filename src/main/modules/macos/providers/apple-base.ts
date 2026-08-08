@@ -100,6 +100,8 @@ export function boolArg(value: boolean): string {
 }
 
 /** A possibly-null date string from a script, normalised to `undefined`. */
-export function optionalDate(value: string | null | undefined): string | undefined {
+export function optionalDate(
+  value: string | null | undefined,
+): string | undefined {
   return value ?? undefined;
 }

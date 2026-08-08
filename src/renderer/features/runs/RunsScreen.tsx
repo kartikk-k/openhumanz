@@ -263,7 +263,10 @@ function NoRunSelected({ onSelect, onStart, now }: NoRunSelectedProps) {
                         {run.title}
                       </span>
                       <span
-                        className={cn('shrink-0 text-[11px]', TONE_TEXT[meta.tone])}
+                        className={cn(
+                          'shrink-0 text-[11px]',
+                          TONE_TEXT[meta.tone],
+                        )}
                       >
                         {meta.label}
                       </span>

@@ -34,11 +34,7 @@ import {
   mono,
   textMuted,
 } from '../../components/ui';
-import {
-  toast,
-  usePendingApprovalsForRun,
-  useRunsStore,
-} from '../../store';
+import { toast, usePendingApprovalsForRun, useRunsStore } from '../../store';
 import { FailureNotice } from './FailureNotice';
 import { explainFailure } from './failures';
 import { RunCostMeter } from './CostMeter';
@@ -181,7 +177,9 @@ export function RunDetail({ onRerun }: RunDetailProps) {
               <span aria-hidden="true">·</span>
               <span>{run.trigger}</span>
               <span aria-hidden="true">·</span>
-              <span>started {formatDateTime(run.startedAt ?? run.createdAt)}</span>
+              <span>
+                started {formatDateTime(run.startedAt ?? run.createdAt)}
+              </span>
               {run.finishedAt ? (
                 <>
                   <span aria-hidden="true">·</span>

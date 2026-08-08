@@ -198,6 +198,54 @@ function ProviderRow({ provider }: { provider: ProviderAvailability }) {
   );
 }
 
+/**
+ * Just the OS data sources. Split out because the onboarding data-source step
+ * wants this half without the engine half.
+ */
+export function ProvidersPanel({ className }: { className?: string }) {
+  const environment = useEnvironmentStore((state) => state.environment);
+  const providers = environment?.providers ?? [];
+  const unreachable = [...providers].sort(
+    (a, b) => Number(b.available) - Number(a.available),
+  );
+
+  return (
+    <div
+      className={cn(
+        'rounded-md border border-zinc-200 px-3 py-2.5 dark:border-zinc-800',
+        className,
+      )}
+    >
+      <p className={eyebrow}>Data sources on this machine</p>
+      {environment ? (
+        <>
+          <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800/70">
+            {unreachable.map((provider) => (
+              <ProviderRow key={provider.id} provider={provider} />
+            ))}
+          </ul>
+          {providers.length === 0 ? (
+            <p className={cn('mt-1.5 text-[12.5px]', textMuted)}>
+              No providers were reported.
+            </p>
+          ) : null}
+          {providers.some((provider) => !provider.available) ? (
+            <p className={cn('mt-2 text-[12px]', textMuted)}>
+              Unavailable is a normal answer here — most of these are macOS
+              apps, and this machine reports itself as{' '}
+              <code className={mono}>{environment.platform}</code>.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <p className={cn('mt-1.5 text-[12.5px]', textMuted)}>
+          Nothing has been checked yet, so nothing is claimed here either way.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /* Panel                                                               */
 /* ------------------------------------------------------------------ */
@@ -254,13 +302,6 @@ export function EnvironmentPanel({
     describeEngine(engine, readEngineAuth(engine, sidecar)),
   );
   const finding = apiKeyFinding(environment);
-
-  const availableProviders = (environment?.providers ?? []).filter(
-    (provider) => provider.available,
-  );
-  const otherProviders = (environment?.providers ?? []).filter(
-    (provider) => !provider.available,
-  );
 
   return (
     <section className={cn('space-y-3', className)}>
@@ -398,41 +439,7 @@ export function EnvironmentPanel({
         </>
       ) : null}
 
-      {showProviders ? (
-        <div className="rounded-md border border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
-          <p className={eyebrow}>Data sources on this machine</p>
-          {environment ? (
-            <>
-              <ul className="mt-1 divide-y divide-zinc-100 dark:divide-zinc-800/70">
-                {availableProviders.map((provider) => (
-                  <ProviderRow key={provider.id} provider={provider} />
-                ))}
-                {otherProviders.map((provider) => (
-                  <ProviderRow key={provider.id} provider={provider} />
-                ))}
-              </ul>
-              {availableProviders.length === 0 &&
-              otherProviders.length === 0 ? (
-                <p className={cn('mt-1.5 text-[12.5px]', textMuted)}>
-                  No providers were reported.
-                </p>
-              ) : null}
-              {otherProviders.length > 0 ? (
-                <p className={cn('mt-2 text-[12px]', textMuted)}>
-                  Unavailable is a normal answer here — most of these are macOS
-                  apps, and this machine reports itself as{' '}
-                  <code className={mono}>{environment.platform}</code>.
-                </p>
-              ) : null}
-            </>
-          ) : (
-            <p className={cn('mt-1.5 text-[12.5px]', textMuted)}>
-              Nothing has been checked yet, so nothing is claimed here either
-              way.
-            </p>
-          )}
-        </div>
-      ) : null}
+      {showProviders ? <ProvidersPanel /> : null}
     </section>
   );
 }

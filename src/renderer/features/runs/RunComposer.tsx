@@ -191,11 +191,16 @@ export function RunComposer({
         {bridge && selected && !selected.available ? (
           <Notice
             title={`${selected.name} is not available`}
-            body={selected.reason ?? 'The engine binary was not found on this machine.'}
+            body={
+              selected.reason ??
+              'The engine binary was not found on this machine.'
+            }
           />
         ) : null}
 
-        {failure ? <Notice title="Could not start the run" body={failure} /> : null}
+        {failure ? (
+          <Notice title="Could not start the run" body={failure} />
+        ) : null}
 
         <Textarea
           label="Prompt"

@@ -93,7 +93,10 @@ export function Stepper({
   const currentIndex = stepIndex(current);
 
   return (
-    <ol className="flex flex-wrap items-center gap-1.5" aria-label="Setup steps">
+    <ol
+      className="flex flex-wrap items-center gap-1.5"
+      aria-label="Setup steps"
+    >
       {FLOW.map((entry, index) => {
         const done = index < currentIndex;
         const active = index === currentIndex;
@@ -111,14 +114,17 @@ export function Stepper({
                   'bg-indigo-600 text-white dark:bg-indigo-500 dark:text-white',
                 done &&
                   'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800',
-                !active && !done && 'cursor-default text-zinc-400 dark:text-zinc-600',
+                !active &&
+                  !done &&
+                  'cursor-default text-zinc-400 dark:text-zinc-600',
               )}
             >
               <span
                 className={cn(
                   'flex h-4 w-4 items-center justify-center rounded-full text-[10px] tabular-nums',
                   active && 'bg-white/25',
-                  done && 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
+                  done &&
+                    'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
                   !active && !done && 'bg-zinc-100 dark:bg-zinc-800',
                 )}
               >
@@ -211,7 +217,9 @@ export function FactList({
             <p className="text-[13px] font-medium text-zinc-900 dark:text-zinc-100">
               {item.title}
             </p>
-            <p className={cn('mt-0.5 text-[12.5px] leading-relaxed', textSubtle)}>
+            <p
+              className={cn('mt-0.5 text-[12.5px] leading-relaxed', textSubtle)}
+            >
               {item.body}
             </p>
           </div>

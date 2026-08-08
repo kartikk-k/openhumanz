@@ -105,7 +105,8 @@ const EXPLANATIONS: Record<FailureKind, Omit<FailureExplanation, 'kind'>> = {
   auth: {
     title: 'The engine rejected our credentials',
     body: 'The agent CLI is not signed in, or the credentials it has are no longer valid.',
-    advice: 'Sign in to the CLI, then re-run. Settings shows what was detected.',
+    advice:
+      'Sign in to the CLI, then re-run. Settings shows what was detected.',
     tone: 'danger',
     icon: KeyRound,
     eyebrow: 'Authentication',

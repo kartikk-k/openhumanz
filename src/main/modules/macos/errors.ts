@@ -445,14 +445,17 @@ export function mapAppleScriptError(input: MapErrorInput): MacosError {
     });
   }
 
-  const mapped = errorNumber !== undefined ? ERROR_TABLE[errorNumber] : undefined;
+  const mapped =
+    errorNumber !== undefined ? ERROR_TABLE[errorNumber] : undefined;
   if (mapped) {
     return finish(mapped, errorNumber);
   }
 
   // No usable number. Under hardened runtime a blocked event can come back with
   // an empty stderr and exit 1, so these text probes are the only signal left.
-  if (/not authori[sz]ed|not permitted|doesn.t have permission/i.test(cleaned)) {
+  if (
+    /not authori[sz]ed|not permitted|doesn.t have permission/i.test(cleaned)
+  ) {
     return finish(ERROR_TABLE[-1743], -1743);
   }
   if (/operation not permitted/i.test(cleaned)) {
@@ -479,9 +482,8 @@ export function mapAppleScriptError(input: MapErrorInput): MacosError {
   function finish(mapping: Mapping, code: number | undefined): MacosError {
     const app = input.appId ? APPLE_APPS[input.appId] : undefined;
     const withApp = app
-      ? mapping.message.replace(
-          /\bthe application\b/i,
-          (match) => (match[0] === 'T' ? app.displayName : app.displayName),
+      ? mapping.message.replace(/\bthe application\b/i, (match) =>
+          match[0] === 'T' ? app.displayName : app.displayName,
         )
       : mapping.message;
 

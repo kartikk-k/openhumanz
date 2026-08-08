@@ -44,7 +44,7 @@ import {
   ScheduleSettingsSchema,
   SettingsSchema,
   UiSettingsSchema,
-  NotificationSettingsSchema,
+  type SettingsPatch,
 } from '../../../shared/settings';
 import { APP_NAME, DEFAULT_WORKSPACE_HINT } from '../../constants';
 import { cn } from '../../lib/utils';
@@ -171,9 +171,19 @@ export function SettingsScreen() {
   const { write, saving, canWrite, blockedReason } = useSettingsWriter();
   const [confirmOpenGate, setConfirmOpenGate] = useState(false);
 
+  /**
+   * Fire-and-forget wrapper. Control handlers are `void`-returning by
+   * signature; handing them a promise makes an unhandled rejection out of a
+   * failure that `write` has already reported as a toast.
+   */
+  const save = (patch: SettingsPatch, label: string): void => {
+    void write(patch, label);
+  };
+
   useEffect(() => {
     if (useSettingsStore.getState().status === 'idle') void loadSettings();
-    if (useEnvironmentStore.getState().status === 'idle') void loadEnvironment();
+    if (useEnvironmentStore.getState().status === 'idle')
+      void loadEnvironment();
   }, [loadSettings, loadEnvironment]);
 
   const notice = describeUnavailable(
@@ -351,7 +361,7 @@ export function SettingsScreen() {
             schema={SettingsSchema.shape.workspaceRoot}
             disabled={disabled}
             onCommit={(value) =>
-              void write({ workspaceRoot: value }, 'Workspace folder')
+              save({ workspaceRoot: value }, 'Workspace folder')
             }
           />
 
@@ -412,7 +422,7 @@ export function SettingsScreen() {
               options={engineOptions}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ engine: { preferred: value } }, 'Preferred engine')
+                save({ engine: { preferred: value } }, 'Preferred engine')
               }
             />
             <TextSetting
@@ -425,7 +435,7 @@ export function SettingsScreen() {
               schema={EngineSettingsSchema.shape.binaryPath}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ engine: { binaryPath: value } }, 'Binary path')
+                save({ engine: { binaryPath: value } }, 'Binary path')
               }
             />
             <NumberSetting
@@ -439,7 +449,7 @@ export function SettingsScreen() {
               step={1}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
+                save(
                   { engine: { maxTurnsPerStep: value } },
                   'Turn limit per step',
                 )
@@ -457,7 +467,7 @@ export function SettingsScreen() {
               step={0.5}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
+                save(
                   { engine: { maxCostUsdPerRun: value } },
                   'Cost ceiling per run',
                 )
@@ -475,7 +485,7 @@ export function SettingsScreen() {
               step={0.5}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ engine: { stepTimeoutMs: value } }, 'Step timeout')
+                save({ engine: { stepTimeoutMs: value } }, 'Step timeout')
               }
             />
             <TextSetting
@@ -488,7 +498,7 @@ export function SettingsScreen() {
               schema={EngineSettingsSchema.shape.defaultCwd}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
+                save(
                   { engine: { defaultCwd: value } },
                   'Default working directory',
                 )
@@ -514,7 +524,7 @@ export function SettingsScreen() {
                 setConfirmOpenGate(true);
                 return;
               }
-              void write(
+              save(
                 { approvals: { requireForSideEffecting: true } },
                 'Approval gate',
               );
@@ -527,10 +537,7 @@ export function SettingsScreen() {
             checked={settings.approvals.allowAlwaysScope}
             disabled={disabled}
             onChange={(next) =>
-              void write(
-                { approvals: { allowAlwaysScope: next } },
-                'Always scope',
-              )
+              save({ approvals: { allowAlwaysScope: next } }, 'Always scope')
             }
           />
           <FieldGrid>
@@ -553,7 +560,7 @@ export function SettingsScreen() {
               }))}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
+                save(
                   { approvals: { defaultScope: value } },
                   'Pre-selected scope',
                 )
@@ -571,7 +578,7 @@ export function SettingsScreen() {
               step={5}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
+                save(
                   { approvals: { pendingTtlMs: value } },
                   'Pending request expiry',
                 )
@@ -596,7 +603,7 @@ export function SettingsScreen() {
               schema={MemorySettingsSchema.shape.directory}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ memory: { directory: value } }, 'Vault folder')
+                save({ memory: { directory: value } }, 'Vault folder')
               }
             />
           </FieldGrid>
@@ -607,7 +614,7 @@ export function SettingsScreen() {
             checked={settings.memory.watch}
             disabled={disabled}
             onChange={(next) =>
-              void write({ memory: { watch: next } }, 'Vault watching')
+              save({ memory: { watch: next } }, 'Vault watching')
             }
           />
           <SwitchSetting
@@ -617,7 +624,7 @@ export function SettingsScreen() {
             checked={settings.memory.indexOnStart}
             disabled={disabled}
             onChange={(next) =>
-              void write({ memory: { indexOnStart: next } }, 'Index on start')
+              save({ memory: { indexOnStart: next } }, 'Index on start')
             }
           />
         </SettingsSection>
@@ -635,7 +642,7 @@ export function SettingsScreen() {
             checked={settings.schedule.enabled}
             disabled={disabled}
             onChange={(next) =>
-              void write({ schedule: { enabled: next } }, 'Scheduler')
+              save({ schedule: { enabled: next } }, 'Scheduler')
             }
           />
           <FieldGrid>
@@ -649,7 +656,7 @@ export function SettingsScreen() {
               schema={timezoneSchema}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ schedule: { timezone: value } }, 'Time zone')
+                save({ schedule: { timezone: value } }, 'Time zone')
               }
             />
             <NumberSetting
@@ -664,7 +671,7 @@ export function SettingsScreen() {
               step={5}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ schedule: { tickMs: value } }, 'Scheduler tick')
+                save({ schedule: { tickMs: value } }, 'Scheduler tick')
               }
             />
           </FieldGrid>
@@ -688,7 +695,7 @@ export function SettingsScreen() {
                 { value: 'dark', label: 'Dark' },
               ]}
               disabled={disabled}
-              onCommit={(value) => void write({ ui: { theme: value } }, 'Theme')}
+              onCommit={(value) => save({ ui: { theme: value } }, 'Theme')}
             />
             <SelectSetting<'comfortable' | 'compact'>
               id="ui-density"
@@ -701,9 +708,7 @@ export function SettingsScreen() {
                 { value: 'compact', label: 'Compact' },
               ]}
               disabled={disabled}
-              onCommit={(value) =>
-                void write({ ui: { density: value } }, 'Density')
-              }
+              onCommit={(value) => save({ ui: { density: value } }, 'Density')}
             />
           </FieldGrid>
           <SwitchSetting
@@ -713,7 +718,7 @@ export function SettingsScreen() {
             checked={settings.ui.showCosts}
             disabled={disabled}
             onChange={(next) =>
-              void write({ ui: { showCosts: next } }, 'Cost display')
+              save({ ui: { showCosts: next } }, 'Cost display')
             }
           />
         </SettingsSection>
@@ -730,7 +735,7 @@ export function SettingsScreen() {
             checked={settings.notifications.enabled}
             disabled={disabled}
             onChange={(next) =>
-              void write({ notifications: { enabled: next } }, 'Notifications')
+              save({ notifications: { enabled: next } }, 'Notifications')
             }
           />
           <SwitchSetting
@@ -740,7 +745,7 @@ export function SettingsScreen() {
             checked={settings.notifications.onApprovalRequired}
             disabled={disabled || !settings.notifications.enabled}
             onChange={(next) =>
-              void write(
+              save(
                 { notifications: { onApprovalRequired: next } },
                 'Approval notifications',
               )
@@ -752,7 +757,7 @@ export function SettingsScreen() {
             checked={settings.notifications.onRunFinished}
             disabled={disabled || !settings.notifications.enabled}
             onChange={(next) =>
-              void write(
+              save(
                 { notifications: { onRunFinished: next } },
                 'Run notifications',
               )
@@ -779,7 +784,7 @@ export function SettingsScreen() {
               }))}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ logging: { level: value } }, 'Log level')
+                save({ logging: { level: value } }, 'Log level')
               }
             />
             <NumberSetting
@@ -794,10 +799,7 @@ export function SettingsScreen() {
               step={1}
               disabled={disabled}
               onCommit={(value) =>
-                void write(
-                  { logging: { maxFileBytes: value } },
-                  'Log rotation size',
-                )
+                save({ logging: { maxFileBytes: value } }, 'Log rotation size')
               }
             />
             <NumberSetting
@@ -811,7 +813,7 @@ export function SettingsScreen() {
               step={1}
               disabled={disabled}
               onCommit={(value) =>
-                void write({ logging: { maxFiles: value } }, 'Files kept')
+                save({ logging: { maxFiles: value } }, 'Files kept')
               }
             />
           </FieldGrid>
@@ -828,11 +830,16 @@ export function SettingsScreen() {
             <span>{blockedReason}</span>
           </p>
         ) : (
-          <p className={cn('flex items-center gap-2 pb-6 text-[12px]', textMuted)}>
+          <p
+            className={cn(
+              'flex items-center gap-2 pb-6 text-[12px]',
+              textMuted,
+            )}
+          >
             <Database size={13} aria-hidden="true" />
             <span>
-              Changes save as you leave each field. Press Escape while editing to
-              restore the stored value.
+              Changes save as you leave each field. Press Escape while editing
+              to restore the stored value.
             </span>
           </p>
         )}

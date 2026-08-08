@@ -158,7 +158,9 @@ function RunRow({
               {failureKindLabel(kind)}
             </Badge>
           ) : null}
-          {!live && run.durationMs !== undefined ? <span>{duration}</span> : null}
+          {!live && run.durationMs !== undefined ? (
+            <span>{duration}</span>
+          ) : null}
           {showCosts && cost !== undefined ? (
             <span>{formatCost(cost)}</span>
           ) : null}
@@ -284,6 +286,9 @@ export function RunList({
     estimateSize: (index) => (rows[index].type === 'header' ? 26 : 74),
     getItemKey: (index) => rows[index].key,
     overscan: 8,
+    // A sensible window before the ResizeObserver reports, so the first
+    // paint is real rows rather than an empty box.
+    initialRect: { width: 0, height: 640 },
   });
 
   const filtered = statuses.length > 0 || debounced !== '';
@@ -423,7 +428,12 @@ function ListPlaceholder({
         title="Not connected to the backend"
         description="The run history lives in the main process, which has not answered yet. Nothing is lost — this pane fills in as soon as it does."
         action={
-          <Button size="sm" variant="outline" icon={RefreshCw} onClick={onRetry}>
+          <Button
+            size="sm"
+            variant="outline"
+            icon={RefreshCw}
+            onClick={onRetry}
+          >
             Try again
           </Button>
         }
@@ -440,7 +450,12 @@ function ListPlaceholder({
         title="Could not load runs"
         description={error}
         action={
-          <Button size="sm" variant="outline" icon={RefreshCw} onClick={onRetry}>
+          <Button
+            size="sm"
+            variant="outline"
+            icon={RefreshCw}
+            onClick={onRetry}
+          >
             Try again
           </Button>
         }
@@ -479,7 +494,12 @@ function ListPlaceholder({
       title="No runs yet"
       description="Start one and every step, tool call and cost lands here as it happens."
       action={
-        <Button size="sm" variant="primary" icon={Activity} onClick={onStartFirst}>
+        <Button
+          size="sm"
+          variant="primary"
+          icon={Activity}
+          onClick={onStartFirst}
+        >
           Start the first run
         </Button>
       }

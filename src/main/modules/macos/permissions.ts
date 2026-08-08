@@ -232,9 +232,10 @@ export class PermissionManager {
       if (!result.probed) {
         return this.store({
           ...this.blank('automation', appId),
-          state: this.get('automation', appId).state === 'granted'
-            ? 'granted'
-            : 'undetermined',
+          state:
+            this.get('automation', appId).state === 'granted'
+              ? 'granted'
+              : 'undetermined',
           detail: `${APPLE_APPS[appId].displayName} is not running, so permission could not be checked without opening it.`,
         });
       }
@@ -397,7 +398,7 @@ export class PermissionManager {
     const db = this.db;
     if (!db) return;
     try {
-      const rows = db.all<Record<string, unknown>>(
+      const rows = db.all(
         'SELECT key, kind, app_id, state, checked_at, error_number, detail FROM macos_permissions',
       );
       for (const row of rows) {

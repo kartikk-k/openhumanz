@@ -185,7 +185,6 @@ export interface ValidatedFieldProps<T> {
   invalidMessage?: string;
   onCommit: (value: T) => void;
   disabled?: boolean;
-  placeholder?: string;
 }
 
 /* ------------------------------------------------------------------ */
@@ -203,7 +202,10 @@ export function TextSetting({
   disabled,
   placeholder,
   monospace = false,
-}: ValidatedFieldProps<string> & { monospace?: boolean }) {
+}: ValidatedFieldProps<string> & {
+  monospace?: boolean;
+  placeholder?: string;
+}) {
   const [state, setState] = useDraft(value);
 
   const commit = () => {
@@ -235,9 +237,7 @@ export function TextSetting({
       spellCheck={false}
       autoComplete="off"
       inputClassName={monospace ? 'font-mono text-[12px]' : undefined}
-      onChange={(event) =>
-        setState({ draft: event.target.value, error: null })
-      }
+      onChange={(event) => setState({ draft: event.target.value, error: null })}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {
@@ -341,9 +341,7 @@ export function NumberSetting({
         ) : undefined
       }
       inputClassName="tabular-nums"
-      onChange={(event) =>
-        setState({ draft: event.target.value, error: null })
-      }
+      onChange={(event) => setState({ draft: event.target.value, error: null })}
       onBlur={commit}
       onKeyDown={(event) => {
         if (event.key === 'Enter') {

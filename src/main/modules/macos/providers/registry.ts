@@ -126,9 +126,7 @@ export class CapabilityRegistry {
   }
 
   /** Providers for one capability, in resolution order. */
-  providersFor<C extends CapabilityId>(
-    capability: C,
-  ): CapabilityProvider<C>[] {
+  providersFor<C extends CapabilityId>(capability: C): CapabilityProvider<C>[] {
     return this.providers
       .map((provider, index) => ({ provider, index }))
       .filter((entry) => entry.provider.capability === capability)
@@ -231,12 +229,16 @@ export class CapabilityRegistry {
         continue;
       }
 
-      const verdict = op ? provider.supports(op) : { supported: true, degraded: false };
+      const verdict = op
+        ? provider.supports(op)
+        : { supported: true, degraded: false };
       if (!verdict.supported) {
         attempted.push({
           providerId: provider.id,
           name: provider.name,
-          reason: verdict.reason ?? `${provider.name} cannot do this on this macOS version.`,
+          reason:
+            verdict.reason ??
+            `${provider.name} cannot do this on this macOS version.`,
         });
         continue;
       }
@@ -313,7 +315,9 @@ export class CapabilityRegistry {
         : statuses.length === 0
           ? `Nothing on this machine provides ${capability}.`
           : statuses
-              .map((status) => `${status.name}: ${status.reason ?? 'unavailable'}`)
+              .map(
+                (status) => `${status.name}: ${status.reason ?? 'unavailable'}`,
+              )
               .join('; '),
       caveat: active?.degradedReason,
       providers: statuses,

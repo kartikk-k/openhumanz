@@ -238,11 +238,17 @@ export function VaultTree({
   return (
     <div className={cn('flex min-h-0 flex-col', className)}>
       {filterField}
+      {/*
+        Focus lives on the rows (roving `tabIndex`), which is the tree pattern;
+        the container carries `tabIndex={-1}` so it is a valid focus target for
+        the keyboard handler rather than an unreachable interactive element.
+      */}
       <div
         role="tree"
         aria-label="Memory vault"
+        tabIndex={-1}
         onKeyDown={onKeyDown}
-        className="min-h-0 flex-1 overflow-y-auto py-1"
+        className="min-h-0 flex-1 overflow-y-auto py-1 outline-none"
       >
         {rows.map((row, index) => {
           const { node } = row;

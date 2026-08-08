@@ -14,12 +14,7 @@
  *  - **Term marking.** The words the search matched are marked inside the
  *    prose, so the eye lands on the same thing the index did.
  */
-import {
-  Fragment,
-  useMemo,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { Fragment, useMemo, type ReactNode, type Ref } from 'react';
 import { cn } from '../../lib/utils';
 import { CodeBlock } from '../../components/ui';
 import { textMuted } from '../../components/ui/styles';
@@ -316,7 +311,8 @@ function BlockBody({ block, terms, onOpenDoc }: BlockProps) {
               <span
                 className={cn(
                   'min-w-0 break-words',
-                  item.checked === true && 'text-zinc-400 line-through dark:text-zinc-500',
+                  item.checked === true &&
+                    'text-zinc-400 line-through dark:text-zinc-500',
                 )}
               >
                 <Inline
@@ -421,6 +417,9 @@ export function MarkdownView({
         const lit = overlaps(block, highlight);
         return (
           <div
+            // Blocks are positional: the document is re-parsed whole whenever
+            // it changes, so there is nothing stabler than the position.
+            // eslint-disable-next-line react/no-array-index-key
             key={`${block.kind}-${block.startLine}-${index}`}
             ref={index === firstHighlighted ? focusRef : undefined}
             data-line={block.startLine}

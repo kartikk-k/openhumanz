@@ -76,7 +76,9 @@ export function commandReachesOsascript(command: string): boolean {
       }
       // Only the first non-wrapper token is a command position; after that we
       // are looking at arguments, except for the wrappers listed here.
-      if (!['env', 'sudo', 'nohup', 'xargs', 'time', 'command'].includes(base)) {
+      if (
+        !['env', 'sudo', 'nohup', 'xargs', 'time', 'command'].includes(base)
+      ) {
         break;
       }
     }

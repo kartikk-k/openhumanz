@@ -55,9 +55,7 @@ export function EngineStep({ acknowledged, onAcknowledge }: EngineStepProps) {
       />
 
       <div className="rounded-md border border-dashed border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
-        <p
-          className={cn('text-[12.5px] leading-relaxed', textSubtle)}
-        >
+        <p className={cn('text-[12.5px] leading-relaxed', textSubtle)}>
           Nothing here installs or signs in for you, on purpose — those are your
           credentials and they belong in your own shell. If the CLI is missing,
           install it and press re-check; if it is installed but signed out, run{' '}

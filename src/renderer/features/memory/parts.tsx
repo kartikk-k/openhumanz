@@ -9,7 +9,13 @@
  *  - {@link ChannelNotice} what a failed IPC channel looks like — which, until
  *                         the backend is wired to the UI, is every channel
  */
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   Check,
   ChevronRight,
@@ -84,7 +90,7 @@ export function CopyButton({
         void copy();
       }}
     >
-      {label ? (copied ? 'Copied' : label) : null}
+      {label && (copied ? 'Copied' : label)}
     </Button>
   );
 }
@@ -144,7 +150,11 @@ export function Provenance({
       </span>
       {crumbs.map((crumb) => (
         <span key={crumb} className="flex min-w-0 items-center gap-1">
-          <ChevronRight size={10} aria-hidden="true" className="shrink-0 opacity-60" />
+          <ChevronRight
+            size={10}
+            aria-hidden="true"
+            className="shrink-0 opacity-60"
+          />
           <span className="truncate">{crumb}</span>
         </span>
       ))}
@@ -197,8 +207,8 @@ export function RawDocument({
           const number = index + 1;
           const lit = Boolean(
             highlight &&
-              number >= highlight.startLine &&
-              number <= highlight.endLine,
+            number >= highlight.startLine &&
+            number <= highlight.endLine,
           );
           const isFirstLit = lit && !focusAssigned;
           if (isFirstLit) focusAssigned = true;
@@ -311,7 +321,12 @@ export function ChannelNotice({
         <Icon size={12} aria-hidden="true" className={cn('shrink-0', tone)} />
         <span className={cn('truncate', textMuted)}>{copy.title}.</span>
         {onRetry ? (
-          <Button size="xs" variant="ghost" onClick={onRetry} className="ml-auto">
+          <Button
+            size="xs"
+            variant="ghost"
+            onClick={onRetry}
+            className="ml-auto"
+          >
             Retry
           </Button>
         ) : null}

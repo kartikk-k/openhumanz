@@ -17,7 +17,7 @@
  * to reconstruct the call shape. `ASSISTANT_MACOS_TRACE_ARGS=1` records the real
  * values for a developer who needs them and is a deliberate, visible act.
  */
-import type { Db, Migration } from '../../infra/db';
+import type { Db, Migration, Row } from '../../infra/db';
 import { nowIso, type IsoDateTime } from '../../../shared/common';
 import type { AppleAppId } from './apps';
 import type { MacosErrorKind } from './errors';
@@ -238,7 +238,7 @@ export class Diagnostics {
     // Older than the ring: go to disk. The ring is authoritative for anything
     // it still holds, so rows it already covers are filtered out by id.
     const seen = new Set(fromRing.map((entry) => entry.id));
-    const rows = this.db.all<Record<string, unknown>>(
+    const rows = this.db.all(
       `SELECT * FROM macos_invocations ORDER BY started_at DESC LIMIT ?`,
       [Math.max(limit * 4, 200)],
     );
@@ -255,7 +255,9 @@ export class Diagnostics {
 
   summary(windowSize = 200): DiagnosticsSummary {
     const entries = this.recent({ limit: windowSize });
-    const durations = entries.map((entry) => entry.durationMs).sort((a, b) => a - b);
+    const durations = entries
+      .map((entry) => entry.durationMs)
+      .sort((a, b) => a - b);
     const byScript = new Map<string, number[]>();
     const failsByScript = new Map<string, number>();
     for (const entry of entries) {
@@ -263,7 +265,10 @@ export class Diagnostics {
       list.push(entry.durationMs);
       byScript.set(entry.script, list);
       if (!entry.ok) {
-        failsByScript.set(entry.script, (failsByScript.get(entry.script) ?? 0) + 1);
+        failsByScript.set(
+          entry.script,
+          (failsByScript.get(entry.script) ?? 0) + 1,
+        );
       }
     }
     return {
@@ -279,7 +284,10 @@ export class Diagnostics {
         script,
         count: list.length,
         failed: failsByScript.get(script) ?? 0,
-        p95Ms: percentile([...list].sort((a, b) => a - b), 0.95),
+        p95Ms: percentile(
+          [...list].sort((a, b) => a - b),
+          0.95,
+        ),
       })),
     };
   }
@@ -305,7 +313,7 @@ function percentile(sorted: number[], fraction: number): number {
   return sorted[index];
 }
 
-function rowToRecord(row: Record<string, unknown>): InvocationRecord {
+function rowToRecord(row: Row): InvocationRecord {
   let argShapes: string[] = [];
   try {
     const parsed = JSON.parse(String(row.arg_shapes ?? '[]')) as unknown;
@@ -329,7 +337,8 @@ function rowToRecord(row: Record<string, unknown>): InvocationRecord {
     stdoutBytes: Number(row.stdout_bytes ?? 0),
     stderr: String(row.stderr ?? ''),
     errorKind: (row.error_kind as MacosErrorKind | null) ?? undefined,
-    errorNumber: row.error_number === null ? undefined : Number(row.error_number),
+    errorNumber:
+      row.error_number === null ? undefined : Number(row.error_number),
   };
 }
 

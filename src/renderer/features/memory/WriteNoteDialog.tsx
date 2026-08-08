@@ -15,13 +15,7 @@ import type { MemoryDoc } from '../../../shared/memory';
 import { cn } from '../../lib/utils';
 import { useMutation } from '../../lib/ipc';
 import { toast } from '../../store';
-import {
-  Button,
-  Dialog,
-  Input,
-  Switch,
-  Textarea,
-} from '../../components/ui';
+import { Button, Dialog, Input, Switch, Textarea } from '../../components/ui';
 import { mono, textMuted } from '../../components/ui/styles';
 import { absolutePath, checkVaultPath } from './tree';
 

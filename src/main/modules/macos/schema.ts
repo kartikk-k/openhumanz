@@ -17,7 +17,11 @@ import { z } from 'zod';
 /** `jsonDate` in the prelude emits ISO-8601 with an offset, or JSON null. */
 const OptionalDate = z.string().min(1).nullable().optional();
 
-const OptionalText = z.string().nullable().optional().transform((v) => v ?? '');
+const OptionalText = z
+  .string()
+  .nullable()
+  .optional()
+  .transform((v) => v ?? '');
 
 /* ------------------------------------------------------------------ */
 /* Probe                                                               */
@@ -118,9 +122,7 @@ export type MailDraft = z.infer<typeof MailDraftSchema>;
 /* ------------------------------------------------------------------ */
 
 export const CalendarsSchema = z.object({
-  calendars: z.array(
-    z.object({ name: OptionalText, writable: z.boolean() }),
-  ),
+  calendars: z.array(z.object({ name: OptionalText, writable: z.boolean() })),
   count: z.number().int().nonnegative(),
 });
 export type Calendars = z.infer<typeof CalendarsSchema>;

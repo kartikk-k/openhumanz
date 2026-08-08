@@ -123,6 +123,9 @@ function bridgeEventsToRenderer(): void {
   appEvents.on('goals:changed', (payload) => send(IPC_PUSH.goalsChanged, payload));
   appEvents.on('schedule:changed', (payload) => send(IPC_PUSH.scheduleChanged, payload));
   appEvents.on('memory:indexed', ({ status }) => send(IPC_PUSH.memoryIndexed, { status }));
+  appEvents.on('memory:doc-changed', (payload) =>
+    send(IPC_PUSH.memoryDocChanged, payload),
+  );
   appEvents.on('settings:changed', ({ settings }) =>
     send(IPC_PUSH.settingsChanged, { settings }),
   );

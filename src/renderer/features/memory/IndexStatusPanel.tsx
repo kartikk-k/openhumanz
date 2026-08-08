@@ -88,7 +88,12 @@ export function IndexStatusPanel({
     >
       <div className="flex items-center gap-1.5">
         <span className={eyebrow}>Index</span>
-        <StatusDot tone={dotTone} pulse={busy} label={null} className="ml-0.5" />
+        <StatusDot
+          tone={dotTone}
+          pulse={busy}
+          label={null}
+          className="ml-0.5"
+        />
         <span className={cn('truncate text-[11px]', textMuted)}>
           {stateLabel}
         </span>
@@ -119,7 +124,9 @@ export function IndexStatusPanel({
         />
         <span
           className={cn('min-w-0 flex-1 truncate text-[11px]', mono, textMuted)}
-          title={status?.vaultPath || 'Unknown — memory:status has not answered'}
+          title={
+            status?.vaultPath || 'Unknown — memory:status has not answered'
+          }
         >
           {status?.vaultPath || 'vault path unknown'}
         </span>

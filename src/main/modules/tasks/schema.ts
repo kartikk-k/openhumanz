@@ -18,12 +18,7 @@
  */
 import { z } from 'zod';
 import {
-  AcceptanceCriterionSchema,
-  ApprovalModeSchema,
   BoardKindSchema,
-  EvidenceSchema,
-  PlanStepSchema,
-  TaskPrioritySchema,
   TASK_STATUSES,
   TaskQuerySchema,
   TaskSchema,

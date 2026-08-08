@@ -302,7 +302,12 @@ export function StepHeaderRow({
             </p>
           ) : null}
 
-          <div className={cn('flex flex-wrap gap-x-4 gap-y-1 text-[11px]', textMuted)}>
+          <div
+            className={cn(
+              'flex flex-wrap gap-x-4 gap-y-1 text-[11px]',
+              textMuted,
+            )}
+          >
             {step.usage?.model ? (
               <span className={mono}>{step.usage.model}</span>
             ) : null}
@@ -360,7 +365,8 @@ function MessageEntry({
   const role = ROLE_META[entry.role];
   const RoleIcon = role.icon;
   const long = entry.text.length > PROSE_CLAMP;
-  const shown = long && !expanded ? entry.text.slice(0, PROSE_CLAMP) : entry.text;
+  const shown =
+    long && !expanded ? entry.text.slice(0, PROSE_CLAMP) : entry.text;
 
   return (
     <div className="flex gap-2 py-1.5">
@@ -494,7 +500,12 @@ function ToolEntry({
                 <CircleAlert size={11} aria-hidden="true" />
                 Error
               </p>
-              <CodeBlock code={call.error} language="error" wrap maxHeight="12rem" />
+              <CodeBlock
+                code={call.error}
+                language="error"
+                wrap
+                maxHeight="12rem"
+              />
             </div>
           ) : null}
 
@@ -514,7 +525,9 @@ function ToolFooter({ call }: { call: ToolCall }) {
       )}
     >
       <span>started {formatTime(call.startedAt)}</span>
-      {call.finishedAt ? <span>finished {formatTime(call.finishedAt)}</span> : null}
+      {call.finishedAt ? (
+        <span>finished {formatTime(call.finishedAt)}</span>
+      ) : null}
       {call.approvalId ? (
         <span className={mono} title={call.approvalId}>
           approval {truncate(call.approvalId, 12)}
@@ -538,13 +551,10 @@ function ApprovalEntry({
 }) {
   const { approval } = entry;
   const decided = entry.decision;
-  const meta = approvalStatusMeta(
-    decided === 'approve'
-      ? 'approved'
-      : decided === 'deny'
-        ? 'denied'
-        : approval.status,
-  );
+  let status = approval.status;
+  if (decided === 'approve') status = 'approved';
+  if (decided === 'deny') status = 'denied';
+  const meta = approvalStatusMeta(status);
 
   return (
     <div className="py-1">
@@ -626,7 +636,8 @@ function LogEntry({
   entry: Extract<TimelineEntry, { kind: 'log' }>;
 }) {
   const tone = LOG_TONE[entry.level];
-  const Icon = entry.level === 'error' || entry.level === 'warn' ? CircleAlert : Info;
+  const Icon =
+    entry.level === 'error' || entry.level === 'warn' ? CircleAlert : Info;
 
   return (
     <div className="flex items-start gap-2 py-1">
@@ -739,10 +750,7 @@ export function estimateRowSize(row: TimelineRow): number {
     case 'entry':
       switch (row.entry.kind) {
         case 'message':
-          return Math.min(
-            260,
-            48 + Math.ceil(row.entry.text.length / 90) * 19,
-          );
+          return Math.min(260, 48 + Math.ceil(row.entry.text.length / 90) * 19);
         case 'tool':
           return 32;
         case 'approval':

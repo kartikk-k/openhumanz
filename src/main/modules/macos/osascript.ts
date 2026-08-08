@@ -34,13 +34,10 @@ import type { Logger } from '../../infra/logger';
 import { runProcess, type SpawnResult } from '../../infra/spawn';
 import { randomId } from '../../infra/crypto';
 import type { AppleAppId } from './apps';
-import {
-  MacosError,
-  mapAppleScriptError,
-  type MacosErrorKind,
-} from './errors';
+import { MacosError, mapAppleScriptError, type MacosErrorKind } from './errors';
 import { Diagnostics, startRecord } from './diagnostics';
 import { ScriptStore } from './scripts';
+import { Semaphore } from './semaphore';
 
 /**
  * Absolute path, never resolved from `PATH`.
@@ -74,51 +71,6 @@ export const DEFAULT_APP_CONCURRENCY = 1;
 
 /** Ceiling across all apps, so a burst cannot spawn twenty processes. */
 export const DEFAULT_GLOBAL_CONCURRENCY = 4;
-
-/* ------------------------------------------------------------------ */
-/* Semaphore                                                           */
-/* ------------------------------------------------------------------ */
-
-/** Minimal FIFO semaphore. No dependency earns its place for twenty lines. */
-export class Semaphore {
-  private available: number;
-
-  private readonly waiters: (() => void)[] = [];
-
-  constructor(private readonly capacity: number) {
-    this.available = capacity;
-  }
-
-  get inUse(): number {
-    return this.capacity - this.available;
-  }
-
-  get queued(): number {
-    return this.waiters.length;
-  }
-
-  async acquire(): Promise<() => void> {
-    if (this.available > 0) {
-      this.available -= 1;
-      return this.releaseOnce();
-    }
-    await new Promise<void>((resolve) => {
-      this.waiters.push(resolve);
-    });
-    return this.releaseOnce();
-  }
-
-  private releaseOnce(): () => void {
-    let released = false;
-    return () => {
-      if (released) return;
-      released = true;
-      const next = this.waiters.shift();
-      if (next) next();
-      else this.available += 1;
-    };
-  }
-}
 
 /* ------------------------------------------------------------------ */
 /* Runner                                                              */
@@ -295,7 +247,12 @@ export class OsascriptRunner {
         });
       }
 
-      const result = await this.spawn(scriptPath, args, timeoutMs, options.signal);
+      const result = await this.spawn(
+        scriptPath,
+        args,
+        timeoutMs,
+        options.signal,
+      );
 
       record.durationMs = result.durationMs;
       record.exitCode = result.code;

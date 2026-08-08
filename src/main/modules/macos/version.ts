@@ -78,7 +78,8 @@ export function macosVersionFromDarwin(release: string): MacosVersion | null {
   const major =
     known ??
     (darwinMajor > NEWEST_KNOWN_DARWIN
-      ? DARWIN_TO_MACOS[NEWEST_KNOWN_DARWIN] + (darwinMajor - NEWEST_KNOWN_DARWIN)
+      ? DARWIN_TO_MACOS[NEWEST_KNOWN_DARWIN] +
+        (darwinMajor - NEWEST_KNOWN_DARWIN)
       : 0);
   if (!major) return null;
   return {
@@ -246,13 +247,18 @@ export function checkOpSupport(
 ): OpVerdict {
   const support = SUPPORT_MATRIX[op];
   if (!support) {
-    return { supported: false, degraded: false, reason: `Unknown operation "${op}".` };
+    return {
+      supported: false,
+      degraded: false,
+      reason: `Unknown operation "${op}".`,
+    };
   }
   if (!version) {
     return {
       supported: true,
       degraded: true,
-      reason: 'The macOS version could not be determined, so support is unverified.',
+      reason:
+        'The macOS version could not be determined, so support is unverified.',
     };
   }
   if (support.minMajor !== undefined && version.major < support.minMajor) {

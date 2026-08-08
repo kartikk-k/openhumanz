@@ -145,7 +145,6 @@ function hostTimezone(): string {
   }
 }
 
-
 function sameCondition(a: ScheduleCondition, b: ScheduleCondition): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
 }

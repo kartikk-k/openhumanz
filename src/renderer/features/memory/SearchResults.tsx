@@ -170,7 +170,10 @@ export function SearchResults({
                     </Badge>
                   ))}
                   <span
-                    className={cn('ml-auto text-[10px] tabular-nums', textMuted)}
+                    className={cn(
+                      'ml-auto text-[10px] tabular-nums',
+                      textMuted,
+                    )}
                     title={`BM25 score ${hit.score}`}
                   >
                     {formatRelative(hit.updatedAt)}
@@ -183,7 +186,9 @@ export function SearchResults({
         {loading && !hits ? (
           <div className="flex items-center justify-center gap-2 py-10">
             <Spinner size="sm" label={null} />
-            <span className={cn('text-xs', textMuted)}>Searching the index…</span>
+            <span className={cn('text-xs', textMuted)}>
+              Searching the index…
+            </span>
           </div>
         ) : null}
       </div>

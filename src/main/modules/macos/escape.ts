@@ -38,6 +38,7 @@
  * build-a-string-from-code-points constructor. The result is always parenthesised
  * so it is safe in any expression position, and it round-trips exactly.
  */
+/* eslint-disable max-classes-per-file -- two small, closely-coupled error types. */
 import { ALLOWED_APPLESCRIPT_NAMES } from './apps';
 
 /**
@@ -237,7 +238,9 @@ export function renderScript(
  * is precisely the "looks fine, means something else" class of bug this module
  * is trying to eliminate.
  */
-export function toArg(value: string | number | boolean | Date | null | undefined): string {
+export function toArg(
+  value: string | number | boolean | Date | null | undefined,
+): string {
   if (value === null || value === undefined) return '';
   if (typeof value === 'boolean') return value ? '1' : '0';
   if (typeof value === 'number') {

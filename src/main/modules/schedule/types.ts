@@ -6,10 +6,7 @@
  * without waiting for wall-clock time and without spawning an engine: an
  * injectable clock and an injectable dispatcher.
  */
-import type {
-  ScheduledJob,
-  ScheduleTrigger,
-} from '../../../shared/schedule';
+import type { ScheduledJob, ScheduleTrigger } from '../../../shared/schedule';
 
 /* ------------------------------------------------------------------ */
 /* Clock                                                               */

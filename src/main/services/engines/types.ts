@@ -25,10 +25,7 @@ import type {
   LogLevel,
   Usage,
 } from '../../../shared/common';
-import type {
-  EngineAuthStatus,
-  EngineInfo,
-} from '../../../shared/engines';
+import type { EngineAuthStatus, EngineInfo } from '../../../shared/engines';
 import type { Logger } from '../../infra/logger';
 
 /* ------------------------------------------------------------------ */
