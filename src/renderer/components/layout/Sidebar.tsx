@@ -74,9 +74,12 @@ export function Sidebar() {
   return (
     <nav
       aria-label="Primary"
-      className="flex w-[188px] shrink-0 flex-col border-r border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/50"
+      className="flex w-[188px] shrink-0 flex-col border-r border-zinc-200/60 bg-zinc-50/60 dark:border-zinc-800/60 dark:bg-zinc-900/40"
     >
-      <div className="flex items-center gap-2 px-3 pb-2 pt-3">
+      {/* Frameless window: no traffic lights, so the brand sits at the top.
+          The whole strip is a drag handle so the window can still be moved;
+          the NavLinks inside opt back out via `.draggable-region a`. */}
+      <div className="draggable-region flex items-center gap-2 px-3 pb-2 pt-3">
         <span
           aria-hidden="true"
           className="flex h-5 w-5 items-center justify-center rounded bg-indigo-600 text-[10px] font-bold text-white"

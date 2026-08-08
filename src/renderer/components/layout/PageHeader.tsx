@@ -29,7 +29,7 @@ export function PageHeader({
   return (
     <header
       className={cn(
-        'border-b border-zinc-200 bg-white/95 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/95',
+        'border-b border-zinc-200/60 bg-white/60 backdrop-blur-xl dark:border-zinc-800/60 dark:bg-zinc-950/40',
         sticky && 'sticky top-0 z-20',
         className,
       )}

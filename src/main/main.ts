@@ -80,11 +80,32 @@ const createWindow = async () => {
     app.dock.setIcon(getAssetPath('icon.png'));
   }
 
+  const isMac = process.platform === 'darwin';
+
   mainWindow = new BrowserWindow({
     show: false,
+    title: 'Assistant',
     width: 1024,
     height: 728,
+    minWidth: 720,
+    minHeight: 520,
     icon: getAssetPath('icon.png'),
+    // Fully frameless on macOS: no system title bar AND no traffic lights.
+    // `titleBarStyle: 'hidden'` drops the bar; the window buttons are then
+    // hidden explicitly below with setWindowButtonVisibility(false). The
+    // renderer owns a `.draggable-region` so the window can still be moved.
+    titleBarStyle: isMac ? 'hidden' : 'default',
+    // Let macOS vibrancy show through: the window is transparent and the OS
+    // blurs whatever is behind it. `visualEffectState: 'active'` keeps the
+    // blur lively even when the window is not focused.
+    ...(isMac
+      ? {
+          transparent: true,
+          vibrancy: 'under-window' as const,
+          visualEffectState: 'active' as const,
+          backgroundColor: '#00000000',
+        }
+      : { backgroundColor: '#0a0a0a' }),
     webPreferences: {
       preload: app.isPackaged
         ? path.join(__dirname, 'preload.js')
@@ -94,6 +115,13 @@ const createWindow = async () => {
       contextIsolation: true,
     },
   });
+
+  // No traffic lights: hide the close/minimize/zoom buttons entirely. The
+  // window is still closable via Cmd+Q / the app menu and movable via the
+  // renderer's draggable region.
+  if (isMac && typeof mainWindow.setWindowButtonVisibility === 'function') {
+    mainWindow.setWindowButtonVisibility(false);
+  }
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));
 

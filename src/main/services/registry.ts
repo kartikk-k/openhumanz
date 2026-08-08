@@ -213,9 +213,25 @@ export function createRegistry(options: RegistryOptions): ModuleRegistry {
       if (ipc) {
         for (const [channel, handler] of handlers) {
           const scoped = logger.child(channelOwner.get(channel) ?? 'ipc');
-          ipc.handle(channel, async (payload, senderId) =>
-            handler(payload, { senderId, logger: scoped }),
-          );
+          // Handlers return a bare `IpcResponse`; the bridge contract
+          // (shared/ipc.ts) is that every reply crossing to the renderer is an
+          // `IpcReply` envelope. Wrap success as { ok, data } and turn a thrown
+          // error into { ok, error } so failures survive as values, not as a
+          // rejected `ipcRenderer.invoke` that would lose its message and stack.
+          ipc.handle(channel, async (payload, senderId) => {
+            try {
+              const data = await handler(payload, { senderId, logger: scoped });
+              return { ok: true, data };
+            } catch (cause) {
+              const message =
+                cause instanceof Error ? cause.message : String(cause);
+              const causeCode = (cause as { code?: unknown } | null)?.code;
+              const code =
+                typeof causeCode === 'string' ? causeCode : 'handler_failed';
+              scoped.error('ipc handler failed', { channel, message, code });
+              return { ok: false, error: { message, code } };
+            }
+          });
           boundChannels.push(channel);
         }
         logger.info('ipc handlers registered', {

@@ -14,13 +14,32 @@
   }
 
   body {
-    @apply bg-white text-zinc-900 antialiased dark:bg-zinc-950 dark:text-zinc-100;
+    @apply text-zinc-900 antialiased dark:text-zinc-100;
+    /* Transparent so the native macOS window vibrancy shows through. A faint
+       tint on top keeps text legible and gives the frosted-glass depth without
+       fully hiding the blur. On non-vibrancy platforms the BrowserWindow
+       backgroundColor supplies the opaque fallback. */
+    background-color: transparent;
     /* Desktop chrome, not a web page: no text selection on furniture, and no
        rubber-band scrolling of the whole window. */
     overflow: hidden;
     -webkit-user-select: none;
     user-select: none;
     font-size: 14px;
+  }
+
+  /* The single translucent tint layer painted over the OS vibrancy. Light and
+     dark are tuned so surfaces above still read with enough contrast. Dark mode
+     follows the OS (tailwind darkMode: 'media'), so match it with a media query
+     rather than a class. */
+  #root {
+    background-color: rgb(255 255 255 / 0.55);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    #root {
+      background-color: rgb(9 9 11 / 0.5);
+    }
   }
 
   /* Content the user might reasonably want to copy opts back in. */

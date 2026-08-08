@@ -78,7 +78,7 @@ export function StatusStrip() {
 
   return (
     <div
-      className="flex h-9 shrink-0 items-center gap-1 border-b border-zinc-200 bg-white px-2 dark:border-zinc-800 dark:bg-zinc-950"
+      className="draggable-region flex h-9 shrink-0 items-center gap-1 border-b border-zinc-200/60 px-2 dark:border-zinc-800/60"
       role="status"
       aria-live="polite"
       aria-label="Activity"

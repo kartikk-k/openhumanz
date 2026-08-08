@@ -198,8 +198,8 @@ export function OnboardingScreen() {
   }
 
   return (
-    <div className="flex h-screen w-screen flex-col overflow-hidden bg-white dark:bg-zinc-950">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-5 py-3 dark:border-zinc-800">
+    <div className="flex h-screen w-screen flex-col overflow-hidden">
+      <header className="draggable-region flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200/60 px-5 py-3 dark:border-zinc-800/60">
         <div className="flex items-center gap-2">
           <span
             aria-hidden="true"

@@ -1,18 +1,19 @@
 /**
  * Step 3 — where the data lives.
  *
- * Two capabilities this step would like and does not have: a native folder
- * picker, and a way to ask main whether a path is writable. Neither channel
- * exists in `shared/ipc.ts`, and inventing one from the renderer would produce
- * a button that does nothing or a green tick that means nothing. So the step
- * shows the resolved path, lets it be typed, and says plainly what it cannot
- * confirm.
+ * A native folder picker (`dialog:pick-directory`) fills the path in; the field
+ * stays editable so a path can also be typed or pasted. There is still no
+ * channel to confirm a folder is writable, so the step says so plainly and lets
+ * the app surface any write error on first use.
  */
-import { FolderTree, HardDrive } from 'lucide-react';
+import { FolderTree, HardDrive, FolderOpen } from 'lucide-react';
 import { SettingsSchema, type SettingsPatch } from '../../../shared/settings';
+import { IPC } from '../../../shared/ipc';
 import { DEFAULT_WORKSPACE_HINT } from '../../constants';
 import { cn } from '../../lib/utils';
+import { call } from '../../lib/ipc';
 import { mono, textMuted, textSubtle } from '../../components/ui/styles';
+import { Button } from '../../components/ui/Button';
 import { useSettingsStore } from '../../store';
 import { Notice } from '../settings/Notice';
 import { TextSetting } from '../settings/fields';
@@ -47,19 +48,50 @@ export function WorkspaceStep() {
     void write(patch, label);
   };
 
+  const chooseFolder = async (): Promise<void> => {
+    try {
+      const { path } = await call(IPC.dialog.pickDirectory, {
+        title: 'Choose your workspace folder',
+        defaultPath: settings.workspaceRoot || undefined,
+        buttonLabel: 'Use this folder',
+      });
+      if (path) save({ workspaceRoot: path }, 'Workspace folder');
+    } catch {
+      // The picker is best-effort; typing the path still works.
+    }
+  };
+
   return (
     <>
-      <TextSetting
-        id="onboarding-workspace"
-        label="Workspace folder"
-        monospace
-        placeholder={DEFAULT_WORKSPACE_HINT}
-        hint={`Leave it empty and everything goes in ${DEFAULT_WORKSPACE_HINT}. That is a fine answer — you can move it later without losing anything.`}
-        value={settings.workspaceRoot}
-        schema={SettingsSchema.shape.workspaceRoot}
-        disabled={!canWrite || saving}
-        onCommit={(value) => save({ workspaceRoot: value }, 'Workspace folder')}
-      />
+      <div className="flex items-end gap-2">
+        <div className="min-w-0 flex-1">
+          <TextSetting
+            id="onboarding-workspace"
+            label="Workspace folder"
+            monospace
+            placeholder={DEFAULT_WORKSPACE_HINT}
+            hint={`Leave it empty and everything goes in ${DEFAULT_WORKSPACE_HINT}. That is a fine answer — you can move it later without losing anything.`}
+            value={settings.workspaceRoot}
+            schema={SettingsSchema.shape.workspaceRoot}
+            disabled={!canWrite || saving}
+            onCommit={(value) =>
+              save({ workspaceRoot: value }, 'Workspace folder')
+            }
+          />
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          icon={FolderOpen}
+          disabled={!canWrite || saving}
+          onClick={() => {
+            void chooseFolder();
+          }}
+          className="mb-[22px] shrink-0"
+        >
+          Choose…
+        </Button>
+      </div>
 
       {blockedReason ? (
         <p className={cn('text-[12px] leading-relaxed', textMuted)}>
@@ -72,17 +104,12 @@ export function WorkspaceStep() {
         tone="info"
         size="compact"
         icon={FolderTree}
-        title="Two things this screen cannot do yet"
+        title="One thing this screen cannot confirm"
       >
         <p>
-          There is no native “Choose folder…” dialog in this build — the IPC
-          contract has no directory-picker channel, so type or paste the path
-          instead.
-        </p>
-        <p>
-          And nothing here has checked that the folder exists or is writable;
-          there is no channel to ask. The app creates it on first write, and if
-          that fails you will see the error then rather than now.
+          Nothing here has checked that the folder exists or is writable — there
+          is no channel to ask. The app creates it on first write, and if that
+          fails you will see the error then rather than now.
         </p>
       </Notice>
 

@@ -14,12 +14,14 @@ import {
   CalendarClock,
   Library,
   ListTodo,
+  MessageSquare,
   Settings,
   ShieldCheck,
   type LucideIcon,
 } from 'lucide-react';
 
 export const ROUTES = {
+  chat: '/chat',
   runs: '/runs',
   tasks: '/tasks',
   schedule: '/schedule',
@@ -43,6 +45,13 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  {
+    key: 'chat',
+    path: ROUTES.chat,
+    label: 'Chat',
+    icon: MessageSquare,
+    description: 'Talk to the assistant directly and ask it to do things.',
+  },
   {
     key: 'runs',
     path: ROUTES.runs,

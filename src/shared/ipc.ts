@@ -141,6 +141,9 @@ export const IPC = {
     get: 'onboarding:get',
     set: 'onboarding:set',
   },
+  dialog: {
+    pickDirectory: 'dialog:pick-directory',
+  },
   // `satisfies` makes drift between this map and IpcContract a compile error.
 } as const satisfies Record<string, Record<string, IpcChannel>>;
 
@@ -307,6 +310,28 @@ export interface IpcContract {
     request: Partial<OnboardingStateInput>;
     response: OnboardingState;
   };
+
+  /* dialog -------------------------------------------------------- */
+  'dialog:pick-directory': {
+    request: DirectoryPickRequest;
+    response: DirectoryPickResult;
+  };
+}
+
+/** Options for the native directory picker. All fields optional. */
+export interface DirectoryPickRequest {
+  /** Title of the OS dialog. */
+  title?: string;
+  /** Directory the dialog opens in. */
+  defaultPath?: string;
+  /** Label on the confirm button, e.g. "Choose". */
+  buttonLabel?: string;
+}
+
+/** Result of the native directory picker. */
+export interface DirectoryPickResult {
+  /** The chosen absolute path, or null if the user cancelled. */
+  path: string | null;
 }
 
 /** Union of every renderer -> main channel name. */
