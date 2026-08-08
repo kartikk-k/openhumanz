@@ -5,7 +5,12 @@
  * structured state (SQLite). Their prose lives in the memory vault.
  */
 import { z } from 'zod';
-import { IdSchema, IsoDateTimeSchema, JsonObjectSchema } from './common';
+import {
+  IdSchema,
+  IsoDateTimeSchema,
+  JsonObjectSchema,
+  patchSchema,
+} from './common';
 
 export const TASK_STATUSES = [
   'inbox',
@@ -62,12 +67,15 @@ export const TaskCreateSchema = TaskSchema.omit({
 export type TaskCreate = z.infer<typeof TaskCreateSchema>;
 export type TaskCreateInput = z.input<typeof TaskCreateSchema>;
 
-export const TaskUpdateSchema = TaskSchema.omit({
-  createdAt: true,
-  updatedAt: true,
-})
-  .partial()
-  .extend({ id: IdSchema });
+/**
+ * A patch. Built with {@link patchSchema}, not `.partial()`: `.partial()` keeps
+ * the field defaults, so `parse({ id })` would come back carrying
+ * `notes: ''`, `status: 'todo'`, `order: 0` and blank the stored card.
+ * Unmentioned fields stay absent here.
+ */
+export const TaskUpdateSchema = patchSchema(
+  TaskSchema.omit({ createdAt: true, updatedAt: true }),
+).extend({ id: IdSchema });
 export type TaskUpdate = z.infer<typeof TaskUpdateSchema>;
 
 export const TaskQuerySchema = z.object({
@@ -124,12 +132,16 @@ export const GoalSchema = z.object({
 });
 export type Goal = z.infer<typeof GoalSchema>;
 
-export const GoalWriteSchema = GoalSchema.omit({
-  createdAt: true,
-  updatedAt: true,
-})
-  .partial()
-  .extend({ title: z.string().min(1) });
+/**
+ * Create-or-update by title. Same hazard as {@link TaskUpdateSchema} — with
+ * `.partial()`, `parse({ title: 'x' })` returned `description: ''`,
+ * `status: 'active'`, `order: 0`, so editing a goal's title silently erased its
+ * description and moved it to the top of the list. Built with
+ * {@link patchSchema} so only what the caller sent is present.
+ */
+export const GoalWriteSchema = patchSchema(
+  GoalSchema.omit({ createdAt: true, updatedAt: true }),
+).extend({ title: z.string().min(1) });
 export type GoalWrite = z.infer<typeof GoalWriteSchema>;
 
 export const GoalQuerySchema = z.object({

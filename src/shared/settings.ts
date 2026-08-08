@@ -7,7 +7,7 @@
  * missing new keys upgrades itself.
  */
 import { z } from 'zod';
-import { IsoDateTimeSchema, LogLevelSchema } from './common';
+import { IsoDateTimeSchema, LogLevelSchema, patchSchema } from './common';
 import { ApprovalScopeSchema } from './approvals';
 
 export const EngineSettingsSchema = z.object({
@@ -120,16 +120,22 @@ export const DEFAULT_SETTINGS: Settings = SettingsSchema.parse({});
 /**
  * Deep-partial patch accepted by `settings:set`. Re-parsed after merging, so
  * an invalid patch is rejected as a whole rather than half-applied.
+ *
+ * Each section uses {@link patchSchema}, not `.partial()`. Every leaf here
+ * carries a default, and `.partial()` still applies them — so `{ui:{theme:
+ * 'dark'}}` would parse to a full `ui` section and the merge would reset
+ * `density` and `showCosts` to factory values. Stripping the defaults keeps a
+ * patch a patch.
  */
 export const SettingsPatchSchema = z.object({
   workspaceRoot: z.string().optional(),
-  engine: EngineSettingsSchema.partial().optional(),
-  approvals: ApprovalSettingsSchema.partial().optional(),
-  memory: MemorySettingsSchema.partial().optional(),
-  schedule: ScheduleSettingsSchema.partial().optional(),
-  ui: UiSettingsSchema.partial().optional(),
-  notifications: NotificationSettingsSchema.partial().optional(),
-  logging: LoggingSettingsSchema.partial().optional(),
+  engine: patchSchema(EngineSettingsSchema).optional(),
+  approvals: patchSchema(ApprovalSettingsSchema).optional(),
+  memory: patchSchema(MemorySettingsSchema).optional(),
+  schedule: patchSchema(ScheduleSettingsSchema).optional(),
+  ui: patchSchema(UiSettingsSchema).optional(),
+  notifications: patchSchema(NotificationSettingsSchema).optional(),
+  logging: patchSchema(LoggingSettingsSchema).optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 
@@ -161,3 +167,11 @@ export type OnboardingStateInput = z.input<typeof OnboardingStateSchema>;
 
 export const DEFAULT_ONBOARDING_STATE: OnboardingState =
   OnboardingStateSchema.parse({});
+
+/**
+ * Patch accepted by `onboarding:set`. Same reasoning as
+ * {@link SettingsPatchSchema}: with `.partial()` a `{step:'engine'}` patch
+ * would carry `completed:false` and reset a finished onboarding.
+ */
+export const OnboardingStatePatchSchema = patchSchema(OnboardingStateSchema);
+export type OnboardingStatePatch = z.infer<typeof OnboardingStatePatchSchema>;

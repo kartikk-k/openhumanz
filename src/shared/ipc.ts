@@ -45,7 +45,9 @@ import type {
   ScheduledJob,
   ScheduledJobCreateInput,
   ScheduledJobUpdate,
+  ScheduleHistoryQueryInput,
   ScheduleRunNowRequestInput,
+  ScheduleRunRecord,
 } from './schedule';
 import type {
   MemoryDoc,
@@ -114,6 +116,7 @@ export const IPC = {
     remove: 'schedule:delete',
     runNow: 'schedule:run-now',
     validateCron: 'schedule:validate-cron',
+    history: 'schedule:history',
   },
   memory: {
     search: 'memory:search',
@@ -151,6 +154,7 @@ export const IPC_PUSH = {
   goalsChanged: 'push:goals-changed',
   scheduleChanged: 'push:schedule-changed',
   memoryIndexed: 'push:memory-indexed',
+  memoryDocChanged: 'push:memory-doc-changed',
   settingsChanged: 'push:settings-changed',
   environmentChanged: 'push:environment-changed',
 } as const satisfies Record<string, IpcPushChannel>;
@@ -244,6 +248,14 @@ export interface IpcContract {
     request: { cron: string; timezone?: string };
     response: CronValidation;
   };
+  /**
+   * Evaluation history for a job — including the wake-ups that decided *not*
+   * to spawn, which is how the jobs screen shows a condition gate working.
+   */
+  'schedule:history': {
+    request: ScheduleHistoryQueryInput;
+    response: Page<ScheduleRunRecord>;
+  };
 
   /* memory -------------------------------------------------------- */
   'memory:search': {
@@ -314,6 +326,9 @@ export interface IpcPushContract {
   'push:goals-changed': { ids: string[] };
   'push:schedule-changed': { ids: string[] };
   'push:memory-indexed': { status: MemoryIndexStatus };
+  /** A single vault doc was added, rewritten or removed. Path-scoped so the
+   * memory browser can invalidate one row instead of the whole list. */
+  'push:memory-doc-changed': { path: string; deleted: boolean };
   'push:settings-changed': { settings: Settings };
   'push:environment-changed': { status: EnvironmentStatus };
 }

@@ -6,7 +6,10 @@
  * without waiting for wall-clock time and without spawning an engine: an
  * injectable clock and an injectable dispatcher.
  */
-import type { ScheduledJob } from '../../../shared/schedule';
+import type {
+  ScheduledJob,
+  ScheduleTrigger,
+} from '../../../shared/schedule';
 
 /* ------------------------------------------------------------------ */
 /* Clock                                                               */
@@ -47,8 +50,8 @@ export const systemClock: ScheduleClock = {
 /* Dispatch                                                            */
 /* ------------------------------------------------------------------ */
 
-/** Why a job is firing right now. */
-export type ScheduleTrigger = 'cron' | 'catch-up' | 'manual';
+/** Why a job is firing right now. Defined in shared/, re-exported here. */
+export type { ScheduleTrigger };
 
 /** What the dispatcher is told when a job's condition has passed. */
 export interface ScheduleDispatch {
@@ -91,73 +94,30 @@ export type CounterReader = (
 ) => number | undefined | Promise<number | undefined>;
 
 /* ------------------------------------------------------------------ */
-/* Missed runs                                                         */
+/* Missed runs and run history                                         */
 /* ------------------------------------------------------------------ */
-
-export const MISSED_RUN_POLICIES = ['skip', 'catch-up'] as const;
-/**
- * What to do with an occurrence that came due while the app was closed (or
- * while the machine was asleep).
- *
- * - `skip`     — record the miss and move on to the next occurrence.
- * - `catch-up` — evaluate the condition now and dispatch once, collapsing every
- *                missed occurrence into a single run. Never a burst.
- */
-export type MissedRunPolicy = (typeof MISSED_RUN_POLICIES)[number];
-
-export const DEFAULT_MISSED_RUN_POLICY: MissedRunPolicy = 'skip';
-
-export function isMissedRunPolicy(value: unknown): value is MissedRunPolicy {
-  return (
-    typeof value === 'string' &&
-    (MISSED_RUN_POLICIES as readonly string[]).includes(value)
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Run history                                                         */
-/* ------------------------------------------------------------------ */
-
-export const SCHEDULE_RUN_STATUSES = [
-  'dispatched',
-  'skipped',
-  'error',
-] as const;
-export type ScheduleRunStatus = (typeof SCHEDULE_RUN_STATUSES)[number];
 
 /**
- * One evaluation of a job.
- *
- * Every wake-up writes one of these, including the ones that decided *not* to
- * spawn. The skip history is the evidence that the condition gate works; a
- * table full of `skipped / condition did not pass` rows is the design
- * succeeding, not failing.
+ * These all live in `shared/schedule.ts` now — the jobs screen renders run
+ * history over IPC, so the shapes are wire contract, not module internals.
+ * Re-exported here so the module's own files keep importing from one place.
  */
-export interface ScheduleRunRecord {
-  id: string;
-  jobId: string;
-  trigger: ScheduleTrigger;
-  /** The cron occurrence being served, ISO-8601. Null for a manual run. */
-  scheduledFor: string | null;
-  startedAt: string;
-  finishedAt: string;
-  /** Wall time spent evaluating the condition and handing off the dispatch. */
-  durationMs: number;
-  status: ScheduleRunStatus;
-  conditionKind: string;
-  conditionPassed: boolean;
-  /** Plain-language outcome, e.g. "unread count unchanged (7)". */
-  conditionReason: string;
-  missedCount: number;
-  /** Set when the dispatcher came back with one. */
-  runId: string | null;
-  error: string | null;
-}
+export {
+  MISSED_RUN_POLICIES,
+  DEFAULT_MISSED_RUN_POLICY,
+  isMissedRunPolicy,
+  SCHEDULE_RUN_STATUSES,
+  SCHEDULE_TRIGGERS,
+} from '../../../shared/schedule';
+export type {
+  MissedRunPolicy,
+  ScheduleRunStatus,
+  ScheduleRunRecord,
+} from '../../../shared/schedule';
 
-/** Query for {@link ScheduleRunRecord} history. */
-export interface ScheduleHistoryQuery {
-  jobId?: string;
-  status?: ScheduleRunStatus;
-  limit?: number;
-  offset?: number;
-}
+/**
+ * All-optional history query. `ScheduleHistoryQuery` in shared/ carries
+ * defaults for `limit`/`offset` (it is parsed at the IPC edge); internally the
+ * store wants them genuinely optional, which is the schema's *input* type.
+ */
+export type { ScheduleHistoryQueryInput as ScheduleHistoryQuery } from '../../../shared/schedule';

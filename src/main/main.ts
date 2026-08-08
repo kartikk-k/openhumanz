@@ -6,10 +6,12 @@
  * through IPC.
  */
 import path from 'path';
-import { app, BrowserWindow, shell, ipcMain } from 'electron';
+import { app, BrowserWindow, shell } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { resolveHtmlPath } from './util';
+import type { AppServices } from './bootstrap';
+import { bootstrap } from './bootstrap';
 
 /**
  * Handles application auto-updates
@@ -23,15 +25,7 @@ class AppUpdater {
 }
 
 let mainWindow: BrowserWindow | null = null;
-
-/**
- * IPC Handler: Example round-trip between renderer and main
- */
-ipcMain.on('ipc-example', async (event, arg) => {
-  const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
-  console.log(msgTemplate(arg));
-  event.reply('ipc-example', msgTemplate('pong'));
-});
+let services: AppServices | null = null;
 
 const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
@@ -121,6 +115,17 @@ const createWindow = async () => {
  * Application lifecycle event handlers
  */
 
+let quitting = false;
+app.on('before-quit', (event) => {
+  if (quitting || !services) return;
+  event.preventDefault();
+  quitting = true;
+  void services
+    .shutdown()
+    .catch((error) => console.error('shutdown failed:', error))
+    .finally(() => app.exit(0));
+});
+
 app.on('window-all-closed', () => {
   // Respect the OSX convention of keeping the app in memory
   if (process.platform !== 'darwin') {
@@ -154,8 +159,15 @@ if (!gotTheLock) {
 
   app
     .whenReady()
-    .then(() => {
-      createWindow();
+    .then(async () => {
+      // Before the first window: the renderer must never race against
+      // unregistered IPC handlers.
+      try {
+        services = await bootstrap();
+      } catch (error) {
+        console.error('BOOTSTRAP FAILED:', error);
+      }
+      await createWindow();
       app.on('activate', () => {
         // On macOS re-create window when dock icon is clicked
         if (mainWindow === null) createWindow();

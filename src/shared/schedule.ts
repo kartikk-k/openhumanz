@@ -8,7 +8,12 @@
  *     a deterministic `condition` that must pass before anything is spawned.
  */
 import { z } from 'zod';
-import { IdSchema, IsoDateTimeSchema, JsonObjectSchema } from './common';
+import {
+  IdSchema,
+  IsoDateTimeSchema,
+  JsonObjectSchema,
+  patchSchema,
+} from './common';
 import { RunStatusSchema } from './runs';
 
 /**
@@ -43,6 +48,27 @@ export const ScheduleConditionSchema = z.discriminatedUnion('kind', [
 export type ScheduleCondition = z.infer<typeof ScheduleConditionSchema>;
 export type ScheduleConditionKind = ScheduleCondition['kind'];
 
+export const MISSED_RUN_POLICIES = ['skip', 'catch-up'] as const;
+/**
+ * What to do with an occurrence that came due while the app was closed (or
+ * while the machine was asleep).
+ *
+ * - `skip`     — record the miss and move on to the next occurrence.
+ * - `catch-up` — evaluate the condition now and dispatch once, collapsing every
+ *                missed occurrence into a single run. Never a burst.
+ */
+export const MissedRunPolicySchema = z.enum(MISSED_RUN_POLICIES);
+export type MissedRunPolicy = z.infer<typeof MissedRunPolicySchema>;
+
+export const DEFAULT_MISSED_RUN_POLICY: MissedRunPolicy = 'skip';
+
+export function isMissedRunPolicy(value: unknown): value is MissedRunPolicy {
+  return (
+    typeof value === 'string' &&
+    (MISSED_RUN_POLICIES as readonly string[]).includes(value)
+  );
+}
+
 export const ScheduledJobSchema = z.object({
   id: IdSchema,
   name: z.string().min(1),
@@ -67,6 +93,8 @@ export const ScheduledJobSchema = z.object({
   lastStatus: RunStatusSchema.optional(),
   /** Set when the condition failed, so the table can say "skipped: no new mail". */
   lastSkipReason: z.string().optional(),
+  /** What to do with occurrences that came due while the app was closed. */
+  missedRunPolicy: MissedRunPolicySchema.default(DEFAULT_MISSED_RUN_POLICY),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
   metadata: JsonObjectSchema.default({}),
@@ -90,16 +118,21 @@ export const ScheduledJobCreateSchema = ScheduledJobSchema.omit({
   condition: true,
   allowedTools: true,
   metadata: true,
+  missedRunPolicy: true,
 });
 export type ScheduledJobCreate = z.infer<typeof ScheduledJobCreateSchema>;
 export type ScheduledJobCreateInput = z.input<typeof ScheduledJobCreateSchema>;
 
-export const ScheduledJobUpdateSchema = ScheduledJobSchema.omit({
-  createdAt: true,
-  updatedAt: true,
-})
-  .partial()
-  .extend({ id: IdSchema });
+/**
+ * A patch. {@link patchSchema}, not `.partial()` — the same hazard as the task
+ * and goal patches: `.partial()` would have `parse({ id })` come back with
+ * `enabled: true`, `condition: {kind:'always'}` and `timezone: 'UTC'`, so
+ * renaming a job would re-enable it, drop its condition gate (turning a gated
+ * job into an unconditional heartbeat) and move it to UTC.
+ */
+export const ScheduledJobUpdateSchema = patchSchema(
+  ScheduledJobSchema.omit({ createdAt: true, updatedAt: true }),
+).extend({ id: IdSchema });
 export type ScheduledJobUpdate = z.infer<typeof ScheduledJobUpdateSchema>;
 
 export const ScheduleRunNowRequestSchema = z.object({
@@ -110,6 +143,65 @@ export const ScheduleRunNowRequestSchema = z.object({
 export type ScheduleRunNowRequest = z.infer<typeof ScheduleRunNowRequestSchema>;
 export type ScheduleRunNowRequestInput = z.input<
   typeof ScheduleRunNowRequestSchema
+>;
+
+/* ------------------------------------------------------------------ */
+/* Run history                                                         */
+/* ------------------------------------------------------------------ */
+
+/** Why a job fired. */
+export const SCHEDULE_TRIGGERS = ['cron', 'catch-up', 'manual'] as const;
+export const ScheduleTriggerSchema = z.enum(SCHEDULE_TRIGGERS);
+export type ScheduleTrigger = z.infer<typeof ScheduleTriggerSchema>;
+
+export const SCHEDULE_RUN_STATUSES = [
+  'dispatched',
+  'skipped',
+  'error',
+] as const;
+export const ScheduleRunStatusSchema = z.enum(SCHEDULE_RUN_STATUSES);
+export type ScheduleRunStatus = z.infer<typeof ScheduleRunStatusSchema>;
+
+/**
+ * One evaluation of a job.
+ *
+ * Every wake-up writes one of these, including the ones that decided *not* to
+ * spawn. The skip history is the evidence that the condition gate works; a
+ * table full of `skipped / condition did not pass` rows is the design
+ * succeeding, not failing.
+ */
+export const ScheduleRunRecordSchema = z.object({
+  id: IdSchema,
+  jobId: IdSchema,
+  trigger: ScheduleTriggerSchema,
+  /** The cron occurrence being served, ISO-8601. Null for a manual run. */
+  scheduledFor: IsoDateTimeSchema.nullable(),
+  startedAt: IsoDateTimeSchema,
+  finishedAt: IsoDateTimeSchema,
+  /** Wall time spent evaluating the condition and handing off the dispatch. */
+  durationMs: z.number().int().nonnegative(),
+  status: ScheduleRunStatusSchema,
+  conditionKind: z.string(),
+  conditionPassed: z.boolean(),
+  /** Plain-language outcome, e.g. "unread count unchanged (7)". */
+  conditionReason: z.string(),
+  missedCount: z.number().int().nonnegative(),
+  /** Set when the dispatcher came back with one. */
+  runId: IdSchema.nullable(),
+  error: z.string().nullable(),
+});
+export type ScheduleRunRecord = z.infer<typeof ScheduleRunRecordSchema>;
+
+/** Query for {@link ScheduleRunRecord} history. */
+export const ScheduleHistoryQuerySchema = z.object({
+  jobId: IdSchema.optional(),
+  status: ScheduleRunStatusSchema.optional(),
+  limit: z.number().int().positive().max(500).default(50),
+  offset: z.number().int().nonnegative().default(0),
+});
+export type ScheduleHistoryQuery = z.infer<typeof ScheduleHistoryQuerySchema>;
+export type ScheduleHistoryQueryInput = z.input<
+  typeof ScheduleHistoryQuerySchema
 >;
 
 /** Result of validating a cron expression before it is stored. */

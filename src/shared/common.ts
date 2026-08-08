@@ -83,3 +83,62 @@ export interface Page<T> {
 export function nowIso(): IsoDateTime {
   return new Date().toISOString();
 }
+
+/* ------------------------------------------------------------------ */
+/* Patch schemas                                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Peel `.default()` / `.prefault()` wrappers off a schema type.
+ *
+ * Unwrapping a default does not change the *output* type — `ZodDefault<T>` and
+ * `T` infer the same thing — so this only changes runtime behaviour, never the
+ * shape a caller sees.
+ */
+type StripDefault<T> =
+  T extends z.ZodDefault<infer Inner> ? StripDefault<Inner> : T;
+
+type PatchShape<S extends z.ZodRawShape> = {
+  [K in keyof S]: z.ZodOptional<StripDefault<S[K]> & z.ZodType>;
+};
+
+/** Runtime half of {@link StripDefault}. Also handles `prefault`. */
+function stripDefault(schema: z.ZodType): z.ZodType {
+  let current = schema;
+  for (;;) {
+    const kind = (current as unknown as { _zod?: { def?: { type?: string } } })
+      ._zod?.def?.type;
+    if (kind !== 'default' && kind !== 'prefault') return current;
+    current = (current as unknown as { unwrap(): z.ZodType }).unwrap();
+  }
+}
+
+/**
+ * Build a **patch** schema: every field optional, and every `.default(...)`
+ * stripped so an absent field stays absent.
+ *
+ * Use this instead of `.partial()` for anything that describes a partial
+ * update. `.partial()` only makes the *input* optional — zod still applies the
+ * field's default on the way out, so
+ *
+ * ```ts
+ * GoalSchema.omit({...}).partial().parse({ title: 'x' })
+ * // => { title: 'x', description: '', status: 'active', order: 0 }
+ * ```
+ *
+ * A store that spreads that over the stored row silently blanks the
+ * description and reorders the goal. This helper yields `{ title: 'x' }`, so
+ * "not mentioned" and "set to the default" stay distinguishable — which is the
+ * entire semantic difference between a patch and a replace.
+ */
+export function patchSchema<T extends z.ZodObject<z.ZodRawShape>>(
+  schema: T,
+): z.ZodObject<PatchShape<T['shape']>> {
+  const next: Record<string, z.ZodType> = {};
+  for (const [key, field] of Object.entries(
+    schema.shape as Record<string, z.ZodType>,
+  )) {
+    next[key] = stripDefault(field).optional();
+  }
+  return z.object(next) as unknown as z.ZodObject<PatchShape<T['shape']>>;
+}
