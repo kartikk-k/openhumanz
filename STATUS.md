@@ -4,7 +4,7 @@ Written at the end of the overnight build. Honest about what is proven and what 
 
 ## What exists
 
-An Electron + React + TypeScript desktop app that orchestrates work itself and delegates execution to the Claude Code CLI, exposing its own capabilities back through an MCP server it runs over a unix socket. No account, no backend, no telemetry. 8 domain modules, 35 agent-facing tools, 40 IPC channels.
+An Electron + React + TypeScript desktop app that orchestrates work itself and delegates execution to the Claude Code CLI, exposing its own capabilities back through an MCP server it runs over a unix socket. No account, no backend, no telemetry. 8 domain modules, 35 agent-facing tools, 41 IPC channels.
 
 ```
 src/shared/        types + zod schemas + the IPC contract (the floor)
