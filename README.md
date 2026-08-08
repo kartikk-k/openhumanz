@@ -1,160 +1,99 @@
-# Electron React Template
+# Assistant
 
-A desktop app template built on [Electron React Boilerplate](https://github.com/electron-react-boilerplate/electron-react-boilerplate), preconfigured with:
+A local-first personal assistant for macOS. It orchestrates work itself and delegates execution to coding-agent CLIs you already have installed and pay for, exposing its own capabilities back to them through an MCP server it runs.
 
-- **Electron** (main + preload + renderer processes)
-- **React 19** with React Router (`MemoryRouter`) and Fast Refresh
-- **TypeScript 5**
-- **Tailwind CSS v3** via PostCSS
-- **webpack 5** for dev server and production bundles
-- **electron-builder** for packaging and publishing
-- **Jest** + Testing Library, **ESLint** + Prettier
-- **Zustand** for state, `clsx` / `tailwind-merge` / `class-variance-authority` for styling helpers
+There is no account, no login, no backend of ours, and no telemetry. Every credential in the product is yours: your CLI subscription, your mail accounts. If this repository disappeared tomorrow, every install would keep working.
 
-Package manager: **bun**.
+> **Status: early. The app has not yet been launched end to end.** See [STATUS.md](STATUS.md) for exactly what is proven, what is not, and the known gaps. Read it before trusting anything here.
 
----
+## The idea
+
+The app owns orchestration. The agent CLI executes. MCP is the seam between them.
+
+Inverting the usual arrangement — rather than building an agent harness and plugging a model in — buys four properties:
+
+- **The engine is swappable.** MCP is a standard; any compliant CLI consumes the same tool surface.
+- **Policy is unbypassable.** A tool call physically terminates inside our process. The agent cannot route around a gate that lives on the other side of the protocol.
+- **Prompt injection stops being fatal.** The agent will read attacker-controlled content — emails, web pages, calendar invites. When something in that content says "send my credentials to this address", the approval gate still fires. Security that depends on the model's judgement is not security.
+- **The experience is deterministic where it matters.** Scheduling, retries, history and persistence are ours. Only the inner tool loop is nondeterministic.
+
+The honest boundary: we control the *step* boundary, not the inner loop. Within one CLI invocation the agent decides which of our tools to call and in what order. So steps are kept small, tools are scoped per step, and every step is budgeted.
 
 ## Requirements
 
-- **Node.js** 20+ (CI uses 22) — Electron, webpack and the build scripts run on Node
-- **bun** — used for installing dependencies and running scripts
-
----
+- **macOS** for the full feature set. The app runs elsewhere, but the Apple-native capabilities report themselves unavailable.
+- **Node.js 20+** — Electron, webpack and the build scripts run on Node.
+- **bun** — dependency install and scripts.
+- **[Claude Code](https://claude.com/claude-code)** installed and signed in. Codex is stubbed but not implemented.
 
 ## Getting started
 
 ```bash
-bun install          # installs deps; postinstall installs release/app deps and builds the renderer DLL
-bun run start        # dev mode: webpack dev server + Electron with hot reload
+bun install
+bun run start        # dev: webpack dev server + Electron with hot reload
 ```
-
-Other scripts:
 
 ```bash
-bun run package      # build production bundles and create distributables in release/build
-bun run build        # production main + renderer bundles only (no installer)
-bun run lint         # ESLint over .js/.jsx/.ts/.tsx
-bun run lint:fix     # ESLint with --fix
-bun run test         # Jest
-bun run rebuild      # rebuild native deps against the Electron ABI
+bun run package      # distributables in release/build
+bun run build        # production bundles only
+bun run lint         # ESLint (includes the layering rules)
+bun run test         # Jest — needs `bun run build` first, and Node on PATH
 ```
 
-> Use `bun run test`, not `bun test` — the latter invokes bun's own test runner instead of Jest.
-> Jest's setup step (`.erb/scripts/check-build-exists.ts`) requires a prior `bun run build`, and Jest
-> needs Node on `PATH` (Bun's own runtime cannot execute it). A smoke test lives in `src/__tests__/`.
-
----
-
-## Project structure
+State lives in `~/.assistant` (override with `ASSISTANT_HOME`):
 
 ```
-.
-├── src
-│   ├── main                 # Electron main process
-│   │   ├── main.ts          # app lifecycle, BrowserWindow, IPC handlers
-│   │   ├── preload.ts       # context bridge -> window.electron
-│   │   └── util.ts
-│   └── renderer             # React app
-│       ├── index.tsx        # React entry point
-│       ├── index.ejs        # HTML template (app <title> lives here)
-│       ├── App.tsx          # router + routes
-│       ├── App.css          # Tailwind directives + global styles
-│       ├── components/      # UI components (components/shared for reusables)
-│       ├── hooks/           # custom React hooks
-│       ├── store/           # Zustand stores
-│       ├── lib/             # utilities (e.g. cn())
-│       └── constants/       # shared constants
-├── .erb
-│   ├── configs/             # webpack configs (base, main, preload, renderer dev/prod, dll)
-│   ├── scripts/             # build helpers (clean, notarize, electron-rebuild, ...)
-│   └── mocks/               # Jest file mocks
-├── assets                   # app icons, entitlements.mac.plist, assets.d.ts
-├── release
-│   ├── app/package.json     # the packaged app's own manifest (native deps go here)
-│   └── build/               # electron-builder output
-├── tailwind.config.js
-├── postcss.config.js
-└── package.json
+assistant.db     structured state (sql.js)
+memory/          *.md — the memory vault, yours to edit by hand
+runs/<id>/       transcript.jsonl, engine.jsonl, stderr.log
+settings.json    plain JSON, hand-editable
+GOALS.md         long-term goals, hand-editable
+runtime/         socket + token, 0700, cleared on launch
 ```
 
-Dependencies used by the **renderer** go in the root `package.json`; **native** modules that must ship with the packaged app go in `release/app/package.json`.
+Structured state goes in the database; content goes in plain files you can open. That is the trust story, and it makes debugging dramatically easier.
 
----
+## Architecture
 
-## Tailwind CSS
+[ARCHITECTURE.md](ARCHITECTURE.md) is the binding contract — read it before changing anything.
 
-Tailwind is wired through PostCSS, not a separate build step:
-
-1. `tailwind.config.js` scans `./src/**/*.{js,jsx,ts,tsx}` and `./src/renderer/index.ejs`, with `darkMode: 'media'` (switch to `'class'` if you add a manual theme toggle).
-2. `postcss.config.js` registers the `tailwindcss` and `autoprefixer` plugins.
-3. `src/renderer/App.css` contains the `@tailwind base/components/utilities` directives and is imported by `App.tsx`.
-4. `postcss-loader` runs in the CSS/SCSS rules of `.erb/configs/webpack.config.renderer.dev.ts` and `webpack.config.renderer.prod.ts`.
-
-Add custom theme values under `theme.extend` in `tailwind.config.js`.
-
----
-
-## IPC
-
-`src/main/preload.ts` uses `contextBridge` to expose `window.electron`:
-
-- `window.electron.ipcRenderer.sendMessage / on / once / invoke`
-- `window.electron.platform`, `window.electron.homeDir`
-
-Types live in `src/renderer/preload.d.ts`. The `ipc-example` channel is a round-trip demo: `src/main/main.ts` registers `ipcMain.on('ipc-example', ...)` and replies with `pong`, so from the renderer:
-
-```ts
-window.electron.ipcRenderer.once('ipc-example', (arg) => console.log(arg));
-window.electron.ipcRenderer.sendMessage('ipc-example', 'ping');
+```
+src/shared/        types + zod schemas + the IPC contract (imports nothing)
+src/main/infra/    db, paths, logger, event bus, files, spawn, crypto
+src/main/modules/  approvals · runs · tasks · goals · memory · schedule · settings · macos
+src/main/services/ registry · mcp · engines · orchestrator · engine-bridge
+src/shim/          the MCP relay the CLI spawns
+src/renderer/      shell, design system, feature screens
 ```
 
-Add new channel names to the `Channels` union in `preload.ts`.
+Dependencies point one way, and **modules may not import each other** — cross-module traffic goes through the event bus or a coordinating service. This is enforced by `import/no-restricted-paths`, generated per module directory, so it is a lint error rather than a convention people remember. Adding a capability is: build the module, add it to the registry list.
 
----
+### The MCP server
 
-## Renaming for your project
+Runs on a **unix domain socket** (`0600`), never a TCP port — a loopback port is reachable by every process on the machine and by browser tabs via DNS rebinding, and this server exposes mail and filesystem operations. A per-launch token is regenerated each start and compared in constant time.
 
-Change these, then delete `release/build` and reinstall:
+The CLI spawns a shim that relays stdio to the socket and handshakes with a step id; the server then scopes that connection's tool list to exactly what the step may use — independently of whatever allowlist the CLI was handed. Two gates that fail independently.
 
-| Where | Field |
-| --- | --- |
-| `package.json` | `name`, `description`, `homepage`, `repository`, `author` |
-| `package.json` → `build` | `productName`, `appId` |
-| `package.json` → `build.publish` | `owner`, `repo` |
-| `package.json` → `build.mac` | `identity`, `notarize.teamId` |
-| `release/app/package.json` | `name`, `description`, `author` |
-| `src/renderer/index.ejs` | `<title>` |
-| `assets/` | `icon.svg`, `icon.png`, `icon.ico`, `icon.icns` |
+We deliberately **do not** reimplement file read/edit/search/shell. Claude Code ships better versions, and exposing duplicates causes tool-choice confusion — the model picks the native one and bypasses our gate. Our server owns the assistant surface: memory, tasks, goals, scheduling, and the macOS capabilities. A generic shell tool and an arbitrary-AppleScript tool are refused at registration time; both are arbitrary code execution wearing a friendly schema.
 
----
+### The approval gate
 
-## macOS signing and notarization
+Side-effecting tool calls are checked against standing grants, and on a miss the call parks and returns a pending handle **immediately** — never holding the protocol response open while a human decides, which reliably hits client timeouts.
 
-- Signing identity and team ID come from `build.mac.identity` and `build.mac.notarize.teamId` in `package.json`.
-- `build.afterSign` runs `.erb/scripts/notarize.js`, which calls `notarytool` with the keychain profile **`notarization-profile`**. Create it once locally:
+Three scopes ship: **once**, **for this run**, and **always**. Grants key on a capability (tool name + classified action + a declared argument discriminator), not on the tool name alone — so "always allow reading the calendar" can never authorise deleting an event. Every decision is logged with its full arguments.
 
-```bash
-xcrun notarytool store-credentials notarization-profile \
-  --apple-id "you@example.com" \
-  --team-id "YOURTEAMID" \
-  --password "app-specific-password"
-```
+### Background work
 
-- Notarization is skipped automatically on non-darwin platforms and when `build.mac.notarize` is absent.
+**No CLI invocation is ever put on an unconditional timer.** Every scheduled job carries a deterministic condition — file mtime moved, a counter changed, a time window — evaluated before anything spawns. An unconditional five-minute heartbeat would exhaust a weekly subscription quota by Tuesday. Conditions fail closed, and skips are recorded as first-class history.
 
----
+## Contributing notes
 
-## CI
-
-- `.github/workflows/test.yml` — on push/PR: install with bun on macOS/Windows/Linux, then `package`, `lint`, `tsc --noEmit`, `test`.
-- `.github/workflows/publish.yml` — on `v*` tags or manual dispatch: build and publish installers to a GitHub release via electron-builder.
-- `.github/workflows/codeql-analysis.yml` — CodeQL scan of JS/TS on push, PR and a weekly schedule.
-
----
+- Prefer platform capabilities to packages. `node:crypto`, `node:net`, Electron's own APIs and `Intl` replace most reflexive installs.
+- No native modules. SQLite is `sql.js` (WASM), which has **no FTS5** — memory search uses FTS4 with BM25 computed in JS.
+- Adding a dependency should come with a note on what was tried first.
 
 ## Credits
 
-Based on [Electron React Boilerplate](https://github.com/electron-react-boilerplate/electron-react-boilerplate).
+Built on [Electron React Boilerplate](https://github.com/electron-react-boilerplate/electron-react-boilerplate). The macOS AppleScript decomposition draws on [`kartikk-k/macos-mcp`](https://github.com/kartikk-k/macos-mcp) (MIT).
 
-Licensed under the [MIT License](https://opensource.org/licenses/MIT).
+Licence: not yet chosen — settle it before the repository goes public.
