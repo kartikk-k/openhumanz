@@ -8,32 +8,10 @@
  */
 import type { ReactNode } from 'react';
 import { cn } from '../../lib/utils';
-import { TONE_TEXT, type Tone } from '../../lib/tone';
+import { TONE_TEXT } from '../../lib/tone';
 import { CodeBlock } from '../../components/ui';
 import { explainFailure, isQuotaFailure, type FailureKind } from './failures';
-
-const PANEL: Record<Tone, string> = {
-  neutral:
-    'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60',
-  accent:
-    'border-indigo-200 bg-indigo-50/70 dark:border-indigo-500/30 dark:bg-indigo-500/10',
-  info: 'border-sky-200 bg-sky-50/70 dark:border-sky-500/30 dark:bg-sky-500/10',
-  success:
-    'border-emerald-200 bg-emerald-50/70 dark:border-emerald-500/30 dark:bg-emerald-500/10',
-  warning:
-    'border-amber-300 bg-amber-50 dark:border-amber-500/40 dark:bg-amber-500/10',
-  danger:
-    'border-rose-200 bg-rose-50/70 dark:border-rose-500/30 dark:bg-rose-500/10',
-};
-
-const RAIL: Record<Tone, string> = {
-  neutral: 'bg-zinc-300 dark:bg-zinc-700',
-  accent: 'bg-indigo-500',
-  info: 'bg-sky-500',
-  success: 'bg-emerald-500',
-  warning: 'bg-amber-500',
-  danger: 'bg-rose-500',
-};
+import { PANEL_TONE, RAIL_TONE } from './Notice';
 
 export interface FailureNoticeProps {
   kind: FailureKind | undefined;
@@ -61,13 +39,13 @@ export function FailureNotice({
     <div
       className={cn(
         'relative overflow-hidden rounded-lg border',
-        PANEL[tone],
+        PANEL_TONE[tone],
         className,
       )}
     >
       <span
         aria-hidden="true"
-        className={cn('absolute inset-y-0 left-0 w-[3px]', RAIL[tone])}
+        className={cn('absolute inset-y-0 left-0 w-[3px]', RAIL_TONE[tone])}
       />
       <div
         className={cn(

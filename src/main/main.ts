@@ -98,10 +98,32 @@ const createWindow = async () => {
     mainWindow = null;
   });
 
-  // Open URLs in the user's browser
-  mainWindow.webContents.setWindowOpenHandler((edata) => {
-    shell.openExternal(edata.url);
+  // Open URLs in the user's browser.
+  //
+  // The scheme whitelist is load-bearing, not defensive habit. The renderer
+  // displays memory notes whose text may have arrived from an email, so an
+  // unchecked `openExternal` would hand an attacker `file:`, `smb:` or a
+  // registered custom-protocol handler. The renderer has its own link filter;
+  // this is the one that cannot be bypassed by a careless anchor tag.
+  mainWindow.webContents.setWindowOpenHandler(({ url }) => {
+    let scheme: string;
+    try {
+      scheme = new URL(url).protocol;
+    } catch {
+      return { action: 'deny' };
+    }
+    if (scheme === 'http:' || scheme === 'https:' || scheme === 'mailto:') {
+      shell.openExternal(url).catch(() => {});
+    }
     return { action: 'deny' };
+  });
+
+  // Same reasoning: refuse to navigate the app window itself anywhere but our
+  // own renderer. A hijacked top-level navigation replaces the app UI.
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow?.webContents.getURL()) {
+      event.preventDefault();
+    }
   });
 
   // Remove this if your app does not use auto updates

@@ -25,7 +25,7 @@
 import { nowIso } from '../../../../shared/common';
 import type { ProviderAvailability } from '../../../../shared/engines';
 import type { Logger } from '../../../infra/logger';
-import { MacosError, type RemediationCard } from '../errors';
+import type { RemediationCard } from '../errors';
 import type { PermissionStatus } from '../permissions';
 import type { CapabilityOp } from '../version';
 import {
@@ -179,12 +179,7 @@ export class CapabilityRegistry {
       try {
         return await provider.check();
       } catch (cause) {
-        const message =
-          cause instanceof MacosError
-            ? cause.message
-            : cause instanceof Error
-              ? cause.message
-              : String(cause);
+        const message = cause instanceof Error ? cause.message : String(cause);
         this.logger.warn('provider check threw', {
           providerId: provider.id,
           error: message,
@@ -305,20 +300,23 @@ export class CapabilityRegistry {
     }
 
     const active = statuses.find((status) => status.usable);
-    return {
-      capability,
-      available: Boolean(active),
-      activeProviderId: active?.providerId,
-      activeProviderName: active?.name,
-      reason: active
-        ? undefined
-        : statuses.length === 0
+    let reason: string | undefined;
+    if (!active) {
+      reason =
+        statuses.length === 0
           ? `Nothing on this machine provides ${capability}.`
           : statuses
               .map(
                 (status) => `${status.name}: ${status.reason ?? 'unavailable'}`,
               )
-              .join('; '),
+              .join('; ');
+    }
+    return {
+      capability,
+      available: Boolean(active),
+      activeProviderId: active?.providerId,
+      activeProviderName: active?.name,
+      reason,
       caveat: active?.degradedReason,
       providers: statuses,
       remediation: active

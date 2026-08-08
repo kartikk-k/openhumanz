@@ -13,6 +13,7 @@ import checkNodeEnv from '../scripts/check-node-env';
 import deleteSourceMaps from '../scripts/delete-source-maps';
 import createShimConfig from './webpack.config.shim';
 import CopyFilesPlugin from './copy-files-plugin';
+import { applescriptCopyFiles } from '../../src/main/modules/macos/scripts/copy-spec';
 
 checkNodeEnv('production');
 deleteSourceMaps();
@@ -72,9 +73,13 @@ const configuration: webpack.Configuration = {
 
     // sql.js is loaded at runtime, not bundled: webpack breaks emscripten's
     // glue. Both files must sit next to the bundle. See infra/db.ts.
+    // sql.js, plus the macOS module's AppleScript assets: osascript is a
+    // separate process and cannot read out of app.asar, so the module reads
+    // these through Node and rewrites them under the workspace at startup.
     new CopyFilesPlugin([
       { from: require.resolve('sql.js/dist/sql-wasm.js') },
       { from: require.resolve('sql.js/dist/sql-wasm.wasm') },
+      ...applescriptCopyFiles(),
     ]),
   ],
 

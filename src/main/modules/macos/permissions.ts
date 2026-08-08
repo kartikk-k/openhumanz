@@ -344,7 +344,10 @@ export class PermissionManager {
     return out;
   }
 
+  // eslint-disable-next-line class-methods-use-this
   private blank(kind: PermissionKind, appId?: AppleAppId): PermissionStatus {
+    // Stateless today, but a method so a future per-instance override (a test
+    // clock, a different app table) does not have to move every call site.
     const pane = SETTINGS_PANES[kind];
     return {
       key: permissionKey(kind, appId),
@@ -413,12 +416,12 @@ export class PermissionManager {
           errorNumber:
             row.error_number === null ? undefined : Number(row.error_number),
           detail: String(row.detail ?? base.detail),
-          remediation:
-            state === 'denied'
-              ? kind === 'automation' && appId
-                ? automationRemediation(appId)
-                : fullDiskAccessRemediation(String(row.detail ?? ''))
-              : undefined,
+          remediation: remediationFor(
+            state,
+            kind,
+            appId,
+            String(row.detail ?? ''),
+          ),
         });
       }
     } catch (cause) {
@@ -427,6 +430,18 @@ export class PermissionManager {
       });
     }
   }
+}
+
+/** The card for a persisted denial, rebuilt on load rather than stored. */
+function remediationFor(
+  state: PermissionState,
+  kind: PermissionKind,
+  appId: AppleAppId | undefined,
+  detail: string,
+): RemediationCard | undefined {
+  if (state !== 'denied') return undefined;
+  if (kind === 'automation' && appId) return automationRemediation(appId);
+  return fullDiskAccessRemediation(detail);
 }
 
 export function permissionKey(

@@ -31,6 +31,7 @@ import {
   toast,
 } from '../../store';
 import { useCostCeiling, useShowCosts } from './CostMeter';
+import { Notice } from './Notice';
 
 /** First line of the prompt, clipped — the run's default title. */
 function deriveTitle(prompt: string): string {
@@ -183,23 +184,32 @@ export function RunComposer({
       <div className="space-y-3">
         {!bridge ? (
           <Notice
+            icon={TriangleAlert}
             title="The app is not connected to its backend"
-            body="Runs cannot start until the main process is wired up. You can still write the prompt — starting it will report the same error."
-          />
+          >
+            Runs cannot start until the main process is wired up. You can still
+            write the prompt — starting it will report the same error.
+          </Notice>
         ) : null}
 
         {bridge && selected && !selected.available ? (
           <Notice
+            icon={TriangleAlert}
             title={`${selected.name} is not available`}
-            body={
-              selected.reason ??
-              'The engine binary was not found on this machine.'
-            }
-          />
+          >
+            {selected.reason ??
+              'The engine binary was not found on this machine.'}
+          </Notice>
         ) : null}
 
         {failure ? (
-          <Notice title="Could not start the run" body={failure} />
+          <Notice
+            tone="danger"
+            icon={TriangleAlert}
+            title="Could not start the run"
+          >
+            {failure}
+          </Notice>
         ) : null}
 
         <Textarea
@@ -249,27 +259,6 @@ export function RunComposer({
         </div>
       </div>
     </Dialog>
-  );
-}
-
-/** Amber, not red: "not wired up yet" is a state, not a crash. */
-function Notice({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-500/40 dark:bg-amber-500/10">
-      <TriangleAlert
-        size={14}
-        aria-hidden="true"
-        className="mt-[2px] shrink-0 text-amber-600 dark:text-amber-400"
-      />
-      <div className="min-w-0">
-        <p className="text-[12.5px] font-medium text-zinc-900 dark:text-zinc-100">
-          {title}
-        </p>
-        <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-700 dark:text-zinc-300">
-          {body}
-        </p>
-      </div>
-    </div>
   );
 }
 

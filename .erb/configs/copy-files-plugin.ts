@@ -16,7 +16,12 @@ import type { Compiler } from 'webpack';
 export interface CopyFileSpec {
   /** Absolute source path. */
   from: string;
-  /** Basename in the output directory. Defaults to the source basename. */
+  /**
+   * Destination relative to the output directory. May include a subdirectory
+   * (`macos-scripts/mail-search.applescript`), which is created on demand — the
+   * macOS module's AppleScript assets go into one rather than scattering twenty
+   * files next to `main.js`. Defaults to the source basename.
+   */
   to?: string;
 }
 
@@ -38,6 +43,9 @@ export default class CopyFilesPlugin {
             outputPath,
             file.to ?? path.basename(file.from),
           );
+          await fs.promises.mkdir(path.dirname(destination), {
+            recursive: true,
+          });
           await fs.promises.copyFile(file.from, destination);
         }),
       );

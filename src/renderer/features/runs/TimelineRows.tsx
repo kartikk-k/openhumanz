@@ -34,7 +34,7 @@ import {
 import type { LogLevel } from '../../../shared/common';
 import type { ToolCall } from '../../../shared/runs';
 import { cn } from '../../lib/utils';
-import { TONE_DOT, TONE_TEXT, type Tone } from '../../lib/tone';
+import { TONE_TEXT, type Tone } from '../../lib/tone';
 import {
   approvalStatusMeta,
   stepStatusMeta,
@@ -59,6 +59,7 @@ import {
   textMuted,
 } from '../../components/ui';
 import { FailureNotice } from './FailureNotice';
+import { PANEL_TONE } from './Notice';
 import {
   RUN_LEVEL_KEY,
   elapsedMs,
@@ -512,6 +513,26 @@ function ToolEntry({
           <ToolFooter call={call} />
         </div>
       </CollapsibleSection>
+
+      {/* A tool call that failed says why without being opened first — that is
+          the one line you always want, and clicking to find it is friction. */}
+      {call.error && !expanded ? (
+        <p
+          className={cn(
+            'flex items-start gap-1.5 pl-[30px] pr-2 text-[11.5px] leading-snug',
+            TONE_TEXT.danger,
+          )}
+        >
+          <CircleAlert
+            size={11}
+            aria-hidden="true"
+            className="mt-[3px] shrink-0"
+          />
+          <span className="min-w-0 break-words font-mono">
+            {truncate(call.error, 160)}
+          </span>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -562,7 +583,7 @@ function ApprovalEntry({
         className={cn(
           'rounded-md border px-2.5 py-2',
           decided === undefined && approval.status === 'pending'
-            ? 'border-amber-300 bg-amber-50/60 dark:border-amber-500/40 dark:bg-amber-500/10'
+            ? PANEL_TONE.warning
             : 'border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900',
         )}
       >
@@ -762,11 +783,3 @@ export function estimateRowSize(row: TimelineRow): number {
       return 32;
   }
 }
-
-/** Stable per-row dot colour for the density strip in the timeline header. */
-export const ENTRY_TONE: Record<TimelineEntry['kind'], string> = {
-  message: TONE_DOT.accent,
-  tool: TONE_DOT.info,
-  approval: TONE_DOT.warning,
-  log: TONE_DOT.neutral,
-};

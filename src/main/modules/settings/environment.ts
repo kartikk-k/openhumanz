@@ -101,6 +101,15 @@ function callDetect(
   return provider.detect(options);
 }
 
+function omit<T extends object, K extends keyof T>(
+  value: T,
+  key: K,
+): Omit<T, K> {
+  const copy = { ...value };
+  delete copy[key];
+  return copy;
+}
+
 /**
  * A comparison key that ignores the timestamps.
  *
@@ -114,8 +123,8 @@ export function environmentFingerprint(status: EnvironmentStatus): string {
     platform: status.platform,
     apiKeyEnvDetected: status.apiKeyEnvDetected,
     warnings: status.warnings,
-    engines: status.engines.map(({ detectedAt, ...rest }) => rest),
-    providers: status.providers.map(({ checkedAt, ...rest }) => rest),
+    engines: status.engines.map((engine) => omit(engine, 'detectedAt')),
+    providers: status.providers.map((provider) => omit(provider, 'checkedAt')),
   };
   return JSON.stringify(stable);
 }
@@ -181,7 +190,9 @@ export function createEnvironmentCache(
         engines: [],
         providers,
         apiKeyEnvDetected: false,
-        warnings: [`Could not check for agent CLIs: ${(cause as Error).message}`],
+        warnings: [
+          `Could not check for agent CLIs: ${(cause as Error).message}`,
+        ],
         checkedAt: nowIso(),
       };
     }
@@ -197,7 +208,7 @@ export function createEnvironmentCache(
     if (inflight && (!force || inflightForced)) return inflight;
 
     inflightForced = force;
-    inflight = probe(detectOptions)
+    const mine: Promise<EnvironmentStatus> = probe(detectOptions)
       .then((next) => {
         const nextPrint = environmentFingerprint(next);
         cached = next;
@@ -208,10 +219,12 @@ export function createEnvironmentCache(
         return next;
       })
       .finally(() => {
-        inflight = null;
+        // Only retire our own probe; a forced call may have superseded us.
+        if (inflight === mine) inflight = null;
       });
+    inflight = mine;
 
-    return inflight;
+    return mine;
   };
 
   return {

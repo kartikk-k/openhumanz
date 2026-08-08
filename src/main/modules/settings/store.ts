@@ -12,7 +12,11 @@
  */
 import type { EventBus } from '../../infra/events';
 import type { Logger } from '../../infra/logger';
-import { pathExists, readJsonFile, writeJsonFileAtomic } from '../../infra/files';
+import {
+  pathExists,
+  readJsonFile,
+  writeJsonFileAtomic,
+} from '../../infra/files';
 import type { Settings, SettingsPatch } from '../../../shared/settings';
 import { SettingsPatchSchema, SettingsSchema } from '../../../shared/settings';
 import type { RejectedField } from './coerce';

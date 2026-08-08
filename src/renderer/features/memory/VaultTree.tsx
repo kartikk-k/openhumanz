@@ -250,6 +250,11 @@ export function VaultTree({
         onKeyDown={onKeyDown}
         className="min-h-0 flex-1 overflow-y-auto py-1 outline-none"
       >
+        {rows.length === 0 ? (
+          <p className={cn('px-3 py-6 text-center text-[11px]', textMuted)}>
+            No files here yet.
+          </p>
+        ) : null}
         {rows.map((row, index) => {
           const { node } = row;
           const isSelected = node.kind === 'file' && node.path === selectedPath;

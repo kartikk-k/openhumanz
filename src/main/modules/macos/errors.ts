@@ -480,11 +480,11 @@ export function mapAppleScriptError(input: MapErrorInput): MacosError {
   });
 
   function finish(mapping: Mapping, code: number | undefined): MacosError {
+    // The table's messages say "the application"; naming it reads better and
+    // is the difference between a user knowing which app to go and fix and not.
     const app = input.appId ? APPLE_APPS[input.appId] : undefined;
     const withApp = app
-      ? mapping.message.replace(/\bthe application\b/i, (match) =>
-          match[0] === 'T' ? app.displayName : app.displayName,
-        )
+      ? mapping.message.replace(/\bthe application\b/i, app.displayName)
       : mapping.message;
 
     let remediation: RemediationCard | undefined;

@@ -36,6 +36,7 @@ import {
 } from '../../components/ui';
 import { toast, usePendingApprovalsForRun, useRunsStore } from '../../store';
 import { FailureNotice } from './FailureNotice';
+import { Notice } from './Notice';
 import { explainFailure } from './failures';
 import { RunCostMeter } from './CostMeter';
 import { RunTimeline } from './RunTimeline';
@@ -261,27 +262,21 @@ export function RunDetail({ onRerun }: RunDetailProps) {
           ) : null}
 
           {approvals.length > 0 ? (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-500/40 dark:bg-amber-500/10">
-              <ShieldCheck
-                size={15}
-                aria-hidden="true"
-                className="shrink-0 text-amber-600 dark:text-amber-400"
-              />
-              <p className="min-w-0 flex-1 text-[12.5px] text-zinc-800 dark:text-zinc-200">
-                <span className="font-medium">
-                  {approvals.length} action{approvals.length === 1 ? '' : 's'}{' '}
-                  waiting on you.
-                </span>{' '}
-                The run is paused until you decide.
-              </p>
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() => navigate(ROUTES.approvals)}
-              >
-                Review
-              </Button>
-            </div>
+            <Notice
+              icon={ShieldCheck}
+              title={`${approvals.length} action${approvals.length === 1 ? '' : 's'} waiting on you`}
+              actions={
+                <Button
+                  size="xs"
+                  variant="outline"
+                  onClick={() => navigate(ROUTES.approvals)}
+                >
+                  Review
+                </Button>
+              }
+            >
+              The run is paused until you decide.
+            </Notice>
           ) : null}
 
           <RunCostMeter

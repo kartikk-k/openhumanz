@@ -234,6 +234,13 @@ export function createMacosModule(
       }));
 
     const anyAvailable = summaries.some((summary) => summary.available);
+    let reason: string | undefined;
+    if (platform !== 'darwin') {
+      reason = `These capabilities need macOS; this machine is ${platform}.`;
+    } else if (!anyAvailable) {
+      reason =
+        'No macOS capability is usable right now. See each capability for the reason.';
+    }
     return {
       platform,
       isMac: platform === 'darwin',
@@ -241,12 +248,7 @@ export function createMacosModule(
       apps,
       capabilities: summaries,
       permissions: permissions.all(),
-      reason:
-        platform !== 'darwin'
-          ? `These capabilities need macOS; this machine is ${platform}.`
-          : anyAvailable
-            ? undefined
-            : 'No macOS capability is usable right now. See each capability for the reason.',
+      reason,
       checkedAt: new Date().toISOString(),
     };
   };

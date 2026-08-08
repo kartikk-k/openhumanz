@@ -290,7 +290,11 @@ export class ScriptStore {
     const written: MaterializedScript[] = [];
     const next = new Map<string, MaterializedScript>();
 
+    // Serial file IO, deliberately. Twenty small writes into one directory are
+    // not worth a parallel fan-out, and doing them in order means a failure
+    // names the script that failed instead of one of twenty racing rejections.
     for (const spec of SCRIPT_SPECS) {
+      // eslint-disable-next-line no-await-in-loop
       const body = await fsp.readFile(
         path.join(sourceDir, `${spec.name}${SCRIPT_EXTENSION}`),
         'utf8',
@@ -314,16 +318,19 @@ export class ScriptStore {
 
         let needsWrite = true;
         try {
+          // eslint-disable-next-line no-await-in-loop
           const existing = await fsp.readFile(filePath, 'utf8');
           needsWrite = existing !== text;
         } catch {
           needsWrite = true;
         }
         if (needsWrite) {
+          // eslint-disable-next-line no-await-in-loop
           await fsp.writeFile(filePath, text, {
             encoding: 'utf8',
             mode: 0o600,
           });
+          // eslint-disable-next-line no-await-in-loop
           await fsp.chmod(filePath, 0o600).catch(() => undefined);
         }
 

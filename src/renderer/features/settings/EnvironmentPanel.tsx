@@ -408,7 +408,12 @@ export function EnvironmentPanel({
               <EngineRow
                 key={view.engine.id}
                 view={view}
-                active={active?.id === view.engine.id}
+                // "Active" means "this is what a run would spawn". An engine
+                // that is not installed is never that, even when it is the
+                // only one we know about and the preference points at it.
+                active={
+                  active?.id === view.engine.id && view.engine.available
+                }
               />
             ))}
           </ul>

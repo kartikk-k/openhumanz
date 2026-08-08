@@ -61,11 +61,21 @@ export class AppleScriptEscapeError extends Error {
 
 /**
  * Codepoints that may appear unescaped inside a double-quoted AppleScript
- * literal: printable ASCII, minus `"` (ends the literal) and `\` (starts an
- * escape). Space is included; tab and newline are not.
+ * literal: printable ASCII, minus `"` (ends the literal), `\` (starts an
+ * escape) and `{`. Space is included; tab and newline are not.
+ *
+ * `{` is not dangerous inside a literal — it is excluded so the *output* can
+ * never contain a `{{NAME}}` token. Without that, a value of `"{{APP_NAME}}"`
+ * would be emitted verbatim inside a quoted literal, and a second pass of
+ * {@link renderScript} over already-rendered source would substitute into it.
+ * Nothing does that today; the point is that it cannot become a vulnerability
+ * later, and the cost is a handful of extra characters on the rare string that
+ * contains a brace.
  */
 function isLiteralSafe(codePoint: number): boolean {
-  if (codePoint === 0x22 || codePoint === 0x5c) return false;
+  if (codePoint === 0x22 || codePoint === 0x5c || codePoint === 0x7b) {
+    return false;
+  }
   return codePoint >= 0x20 && codePoint <= 0x7e;
 }
 

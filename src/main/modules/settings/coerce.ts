@@ -36,9 +36,7 @@ type UnknownRecord = Record<string, unknown>;
 type AnyObjectSchema = z.ZodObject<z.ZodRawShape>;
 
 function isPlainObject(value: unknown): value is UnknownRecord {
-  return (
-    typeof value === 'object' && value !== null && !Array.isArray(value)
-  );
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
 /** zod v4 keeps the kind on `_zod.def.type`; `instanceof` breaks across dupes. */

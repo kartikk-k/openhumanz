@@ -65,6 +65,7 @@ import {
   estimateRowSize,
 } from './TimelineRows';
 import { useShowCosts } from './CostMeter';
+import { Notice } from './Notice';
 
 /** Distance from the bottom, in px, still counted as "following the run". */
 const FOLLOW_THRESHOLD = 64;
@@ -289,34 +290,26 @@ export function RunTimeline({
       </div>
 
       {gaps.length > 0 ? (
-        <div className="flex items-start gap-2 border-b border-amber-300 bg-amber-50 px-3 py-2 dark:border-amber-500/40 dark:bg-amber-500/10">
-          <TriangleAlert
-            size={14}
-            aria-hidden="true"
-            className="mt-[2px] shrink-0 text-amber-600 dark:text-amber-400"
-          />
-          <div className="min-w-0 flex-1">
-            <p className="text-[12.5px] font-medium text-zinc-900 dark:text-zinc-100">
-              {gaps.length} event{gaps.length === 1 ? '' : 's'} missing from
-              this transcript
-            </p>
-            <p className="mt-0.5 text-[12px] leading-relaxed text-zinc-700 dark:text-zinc-300">
-              The stream skipped sequence{gaps.length === 1 ? ' ' : 's '}
-              {gaps.slice(0, 8).join(', ')}
-              {gaps.length > 8 ? `, +${gaps.length - 8} more` : ''}. What is
-              shown below is real but incomplete — the full transcript is on
-              disk.
-            </p>
-          </div>
-          <Button
-            size="xs"
-            variant="outline"
-            icon={RefreshCw}
-            onClick={onReload}
-          >
-            Reload
-          </Button>
-        </div>
+        <Notice
+          shape="flush"
+          icon={TriangleAlert}
+          title={`${gaps.length} event${gaps.length === 1 ? '' : 's'} missing from this transcript`}
+          actions={
+            <Button
+              size="xs"
+              variant="outline"
+              icon={RefreshCw}
+              onClick={onReload}
+            >
+              Reload
+            </Button>
+          }
+        >
+          The stream skipped sequence{gaps.length === 1 ? ' ' : 's '}
+          {gaps.slice(0, 8).join(', ')}
+          {gaps.length > 8 ? `, +${gaps.length - 8} more` : ''}. What is shown
+          below is real but incomplete — the full transcript is on disk.
+        </Notice>
       ) : null}
 
       <div className="relative min-h-0 flex-1">

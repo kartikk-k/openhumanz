@@ -142,9 +142,18 @@ function RecentNotes({
 /** The right-hand pane before anything is selected. */
 function NoSelection() {
   const context = useOutletContext<MemoryOutletContext>();
-  const { docs, vaultPath, onCreate, onOpenDoc } = context;
+  const { docs, vaultPath, listError, onRetry, onCreate, onOpenDoc } = context;
 
   const totalBytes = docs.reduce((sum, doc) => sum + doc.sizeBytes, 0);
+
+  // "Could not ask" is not "there is nothing there".
+  if (listError && docs.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <ChannelNotice error={listError} what="the vault" onRetry={onRetry} />
+      </div>
+    );
+  }
 
   if (docs.length === 0) {
     return (
@@ -319,16 +328,36 @@ function MemoryLayout() {
 
   /* ---------------- context for child routes ---------------- */
 
+  const onRetry = useCallback(() => {
+    void list.refetch();
+    void status.refetch();
+    // `list` and `status` are recreated every render; the refetch closures they
+    // carry are the stable part, so depending on them here is deliberate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [list.refetch, status.refetch]);
+
   const context = useMemo<MemoryOutletContext>(
     () => ({
       vaultPath,
       docs,
+      listError: list.error,
       searchQuery: searching ? debounced : '',
+      onRetry,
       onEdit,
       onCreate,
       onOpenDoc: openDoc,
     }),
-    [vaultPath, docs, searching, debounced, onEdit, onCreate, openDoc],
+    [
+      vaultPath,
+      docs,
+      list.error,
+      searching,
+      debounced,
+      onRetry,
+      onEdit,
+      onCreate,
+      openDoc,
+    ],
   );
 
   const existingPaths = useMemo(() => docs.map((doc) => doc.path), [docs]);
@@ -397,10 +426,7 @@ function MemoryLayout() {
           variant="inline"
           error={list.error}
           what="the vault"
-          onRetry={() => {
-            void list.refetch();
-            void status.refetch();
-          }}
+          onRetry={onRetry}
         />
       ) : null}
 
@@ -421,10 +447,7 @@ function MemoryLayout() {
           <IndexStatusPanel
             status={status.data}
             error={status.error}
-            onReindexed={() => {
-              void status.refetch();
-              void list.refetch();
-            }}
+            onReindexed={onRetry}
           />
         </aside>
 

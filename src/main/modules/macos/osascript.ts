@@ -31,7 +31,7 @@
  */
 import { z } from 'zod';
 import type { Logger } from '../../infra/logger';
-import { runProcess, type SpawnResult } from '../../infra/spawn';
+import { spawnProcess, type SpawnResult } from '../../infra/spawn';
 import { randomId } from '../../infra/crypto';
 import type { AppleAppId } from './apps';
 import { MacosError, mapAppleScriptError, type MacosErrorKind } from './errors';
@@ -80,8 +80,55 @@ export const DEFAULT_GLOBAL_CONCURRENCY = 4;
 export type ProcessRunner = (
   command: string,
   args: string[],
-  options: { timeoutMs?: number; env?: Record<string, string | undefined> },
+  options: {
+    timeoutMs?: number;
+    env?: Record<string, string | undefined>;
+    /** Kill the child when this fires. */
+    signal?: AbortSignal;
+  },
 ) => Promise<SpawnResult>;
+
+/**
+ * The real runner: spawn, and kill the process group if the run is cancelled.
+ *
+ * `runProcess` alone would not do — it returns only a promise, so a cancelled
+ * run would leave a wedged `osascript` alive until its own timeout, holding the
+ * per-app semaphore slot and blocking every queued call behind it. Cancellation
+ * has to reach the child, not just the caller.
+ */
+function spawnOsascript(
+  command: string,
+  args: string[],
+  options: {
+    timeoutMs?: number;
+    env?: Record<string, string | undefined>;
+    signal?: AbortSignal;
+  },
+): Promise<SpawnResult> {
+  const handle = spawnProcess(command, args, {
+    timeoutMs: options.timeoutMs,
+    env: options.env,
+    label: 'osascript',
+    collectStdout: true,
+    // Far more than any bounded script here can produce; the cap exists so a
+    // pathological result cannot exhaust memory.
+    maxStdoutBytes: 4 * 1024 * 1024,
+  });
+
+  const { signal } = options;
+  if (!signal) return handle.result;
+  if (signal.aborted) {
+    void handle.kill();
+    return handle.result;
+  }
+  const onAbort = (): void => {
+    void handle.kill();
+  };
+  signal.addEventListener('abort', onAbort, { once: true });
+  return handle.result.finally(() =>
+    signal.removeEventListener('abort', onAbort),
+  );
+}
 
 export interface OsascriptRunnerOptions {
   scripts: ScriptStore;
@@ -141,17 +188,7 @@ export class OsascriptRunner {
     this.global = new Semaphore(
       options.globalConcurrency ?? DEFAULT_GLOBAL_CONCURRENCY,
     );
-    this.run =
-      options.run ??
-      ((command, args, spawnOptions) =>
-        runProcess(command, args, {
-          ...spawnOptions,
-          label: 'osascript',
-          collectStdout: true,
-          // 4 MiB is far more than any bounded script here can produce; the cap
-          // exists so a pathological result cannot exhaust memory.
-          maxStdoutBytes: 4 * 1024 * 1024,
-        }));
+    this.run = options.run ?? spawnOsascript;
     this.platform = options.platform ?? process.platform;
   }
 
@@ -275,7 +312,7 @@ export class OsascriptRunner {
         throw error;
       }
 
-      const parsed = this.parse(result.stdout, schema, script, appId);
+      const parsed = parseScriptOutput(result.stdout, schema, script, appId);
       record.ok = true;
       return parsed;
     } catch (cause) {
@@ -326,8 +363,9 @@ export class OsascriptRunner {
     timeoutMs: number,
     signal?: AbortSignal,
   ): Promise<SpawnResult> {
-    const pending = this.run(this.binaryPath, [scriptPath, ...args], {
+    return this.run(this.binaryPath, [scriptPath, ...args], {
       timeoutMs,
+      signal,
       env: {
         // A helper spawned from Electron inherits ELECTRON_RUN_AS_NODE and the
         // inspector flags. osascript is not node and neither belongs here.
@@ -336,75 +374,62 @@ export class OsascriptRunner {
         NODE_OPTIONS: undefined,
       },
     });
+  }
+}
 
-    if (!signal) return pending;
-
-    // `spawnProcess` owns the kill path; racing the abort against the result
-    // and letting the timeout clean up is simpler and cannot leave an orphan,
-    // because the child is in its own process group either way.
-    return new Promise<SpawnResult>((resolve, reject) => {
-      const onAbort = (): void => {
-        reject(
-          new MacosError({
-            kind: 'user-cancelled',
-            message: 'The run was cancelled.',
-          }),
-        );
-      };
-      signal.addEventListener('abort', onAbort, { once: true });
-      pending
-        .then(resolve, reject)
-        .finally(() => signal.removeEventListener('abort', onAbort));
+/**
+ * Parse and validate script stdout.
+ *
+ * A module-level function rather than a method because it touches no runner
+ * state: given the same bytes it gives the same answer, which is what makes the
+ * malformed-output cases testable without constructing a runner at all.
+ */
+function parseScriptOutput<TOutput>(
+  stdout: string,
+  schema: z.ZodType<TOutput>,
+  script: string,
+  appId?: AppleAppId,
+): TOutput {
+  const text = stdout.trim();
+  if (text === '') {
+    throw new MacosError({
+      kind: 'bad-output',
+      message: `The ${script} script produced no output.`,
+      script,
+      appId,
     });
   }
 
-  private parse<TOutput>(
-    stdout: string,
-    schema: z.ZodType<TOutput>,
-    script: string,
-    appId?: AppleAppId,
-  ): TOutput {
-    const text = stdout.trim();
-    if (text === '') {
-      throw new MacosError({
-        kind: 'bad-output',
-        message: `The ${script} script produced no output.`,
-        script,
-        appId,
-      });
-    }
-
-    let json: unknown;
-    try {
-      json = JSON.parse(text) as unknown;
-    } catch (cause) {
-      throw new MacosError({
-        kind: 'bad-output',
-        message: `The ${script} script did not return JSON.`,
-        script,
-        appId,
-        // The first line only: a mangled 4 MiB body in a log helps nobody, and
-        // the whole point of keeping stderr is that this is where to look.
-        stderr: text.slice(0, 500),
-        cause,
-      });
-    }
-
-    const parsed = schema.safeParse(json);
-    if (!parsed.success) {
-      const first = parsed.error.issues[0];
-      const where = first?.path.join('.') || '(root)';
-      throw new MacosError({
-        kind: 'bad-output',
-        message:
-          `The ${script} script returned an unexpected shape at "${where}": ` +
-          `${first?.message ?? 'validation failed'}. This usually means the ` +
-          "application's scripting support changed in this macOS version.",
-        script,
-        appId,
-        stderr: text.slice(0, 500),
-      });
-    }
-    return parsed.data;
+  let json: unknown;
+  try {
+    json = JSON.parse(text) as unknown;
+  } catch (cause) {
+    throw new MacosError({
+      kind: 'bad-output',
+      message: `The ${script} script did not return JSON.`,
+      script,
+      appId,
+      // The first line only: a mangled 4 MiB body in a log helps nobody, and
+      // the whole point of keeping stderr is that this is where to look.
+      stderr: text.slice(0, 500),
+      cause,
+    });
   }
+
+  const parsed = schema.safeParse(json);
+  if (!parsed.success) {
+    const first = parsed.error.issues[0];
+    const where = first?.path.join('.') || '(root)';
+    throw new MacosError({
+      kind: 'bad-output',
+      message:
+        `The ${script} script returned an unexpected shape at "${where}": ` +
+        `${first?.message ?? 'validation failed'}. This usually means the ` +
+        "application's scripting support changed in this macOS version.",
+      script,
+      appId,
+      stderr: text.slice(0, 500),
+    });
+  }
+  return parsed.data;
 }
