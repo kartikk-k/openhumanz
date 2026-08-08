@@ -13,7 +13,11 @@
 import { BrowserWindow } from 'electron';
 
 import type { WorkspacePaths } from './infra/paths';
-import { createWorkspacePaths, ensureWorkspace, setWorkspacePaths } from './infra/paths';
+import {
+  createWorkspacePaths,
+  ensureWorkspace,
+  setWorkspacePaths,
+} from './infra/paths';
 import type { Logger } from './infra/logger';
 import { initLoggerForWorkspace } from './infra/logger';
 import type { Db } from './infra/db';
@@ -24,7 +28,11 @@ import { killAllTracked, shimPath } from './infra/spawn';
 import type { ModuleRegistry } from './services/registry';
 import { createRegistry, createElectronIpcBinder } from './services/registry';
 import type { McpSocketServer } from './services/mcp';
-import { createMcpSocketServer, mcpToolNames, DEFAULT_MCP_SERVER_NAME } from './services/mcp';
+import {
+  createMcpSocketServer,
+  mcpToolNames,
+  DEFAULT_MCP_SERVER_NAME,
+} from './services/mcp';
 import type { EngineRegistry } from './services/engines';
 import { createEngineRegistry } from './services/engines';
 import { createEngineProvider } from './services/engine-bridge';
@@ -37,11 +45,12 @@ import type {
 import { createOrchestrator } from './services/orchestrator';
 
 import approvalsModule, { getApprovalGate } from './modules/approvals';
-import runsModule, { configureRuns, getRunStore } from './modules/runs';
+import runsAppModule, { configureRuns, getRunStore } from './modules/runs';
 import tasksModule from './modules/tasks';
 import goalsModule from './modules/goals';
 import memoryModule from './modules/memory';
 import { createScheduleModule } from './modules/schedule';
+import settingsAppModule, { configureSettings } from './modules/settings';
 
 import type { IpcPushChannel, IpcPushPayload } from '../shared/ipc';
 import { IPC_PUSH } from '../shared/ipc';
@@ -119,10 +128,18 @@ function bridgeEventsToRenderer(): void {
   appEvents.on('approval:resolved', (payload) =>
     send(IPC_PUSH.approvalResolved, payload),
   );
-  appEvents.on('tasks:changed', (payload) => send(IPC_PUSH.tasksChanged, payload));
-  appEvents.on('goals:changed', (payload) => send(IPC_PUSH.goalsChanged, payload));
-  appEvents.on('schedule:changed', (payload) => send(IPC_PUSH.scheduleChanged, payload));
-  appEvents.on('memory:indexed', ({ status }) => send(IPC_PUSH.memoryIndexed, { status }));
+  appEvents.on('tasks:changed', (payload) =>
+    send(IPC_PUSH.tasksChanged, payload),
+  );
+  appEvents.on('goals:changed', (payload) =>
+    send(IPC_PUSH.goalsChanged, payload),
+  );
+  appEvents.on('schedule:changed', (payload) =>
+    send(IPC_PUSH.scheduleChanged, payload),
+  );
+  appEvents.on('memory:indexed', ({ status }) =>
+    send(IPC_PUSH.memoryIndexed, { status }),
+  );
   appEvents.on('memory:doc-changed', (payload) =>
     send(IPC_PUSH.memoryDocChanged, payload),
   );
@@ -144,6 +161,10 @@ export async function bootstrap(): Promise<AppServices> {
   const db = await openDatabase({ filePath: paths.dbFile, logger });
   const engines = createEngineRegistry({ logger: logger.child('engines') });
 
+  // The settings module owns the `engines:*` channels but may not import a
+  // service, so the registry is injected rather than reached for.
+  configureSettings({ environment: engines });
+
   // Schedule dispatches through the bus by default; the orchestrator is not
   // available yet, so the real dispatcher is injected below.
   const scheduleModule = createScheduleModule({});
@@ -151,11 +172,12 @@ export async function bootstrap(): Promise<AppServices> {
   const registry = createRegistry({
     modules: [
       approvalsModule,
-      runsModule,
+      runsAppModule,
       tasksModule,
       goalsModule,
       memoryModule,
       scheduleModule,
+      settingsAppModule,
     ],
     db,
     paths,

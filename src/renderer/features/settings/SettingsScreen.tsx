@@ -382,7 +382,7 @@ export function SettingsScreen() {
           <div>
             <p className={eyebrow}>What is stored where</p>
             <ReadOnlyFact
-              label=""
+              label="Resolved path"
               value={workspaceRoot}
               hint="Everything below is relative to this folder."
             />
