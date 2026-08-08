@@ -46,6 +46,24 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     ],
   },
   {
+    id: 'connections',
+    label: 'Connections',
+    keywords: [
+      'composio',
+      'gmail',
+      'slack',
+      'calendar',
+      'notion',
+      'github',
+      'connect app',
+      'integration',
+      'oauth',
+      'api key',
+      'third party',
+      'toolkit',
+    ],
+  },
+  {
     id: 'privacy',
     label: 'Privacy',
     keywords: [

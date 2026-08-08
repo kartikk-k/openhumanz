@@ -63,6 +63,12 @@ export interface AppEvents {
   /** A live event from a running chat turn, forwarded to the UI for streaming. */
   'chat:stream': { sessionId: string | null; event: ChatStreamEvent };
 
+  /* composio */
+  /** The user set a new Composio API key in the UI; persist it to settings. */
+  'composio:save-key': { apiKey: string };
+  /** A Composio connection was added/removed. */
+  'composio:connections-changed': Record<string, never>;
+
   /* lifecycle */
   'module:started': { id: string };
   'module:stopped': { id: string };

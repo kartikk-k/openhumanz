@@ -28,6 +28,7 @@ import {
   Library,
   Lock,
   Monitor,
+  Plug,
   PlugZap,
   ScrollText,
   Search,
@@ -65,6 +66,7 @@ import { PageHeader } from '../../components/layout/PageHeader';
 import { searchSettings } from './search';
 import { useEnvironmentStore, useSettingsStore } from '../../store';
 import { EnvironmentPanel } from './EnvironmentPanel';
+import { ComposioPanel } from './ComposioPanel';
 import { Notice } from './Notice';
 import { describeUnavailable } from './environment';
 import {
@@ -84,6 +86,7 @@ import { useSettingsWriter } from './writer';
 
 const SECTIONS = [
   { id: 'environment', label: 'Environment', icon: PlugZap },
+  { id: 'connections', label: 'Connections', icon: Plug },
   { id: 'privacy', label: 'Privacy', icon: Lock },
   { id: 'workspace', label: 'Workspace', icon: FolderTree },
   { id: 'engine', label: 'Engine', icon: Cpu },
@@ -329,6 +332,15 @@ export function SettingsScreen() {
           description="What this machine can do right now. Re-checked automatically whenever this window regains focus, because installing a CLI, signing in or granting a permission all happen somewhere else."
         >
           <EnvironmentPanel />
+        </SettingsSection>
+
+        {/* ---------------------------------------------------------- */}
+        <SettingsSection
+          id="connections"
+          title="Connections"
+          description="Connect apps like Gmail, Calendar and Slack through your own Composio account. Bring your own key; your connected apps live in your account."
+        >
+          <ComposioPanel />
         </SettingsSection>
 
         {/* ---------------------------------------------------------- */}

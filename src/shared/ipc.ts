@@ -155,6 +155,13 @@ export const IPC = {
     subscribe: 'chat:subscribe',
     unsubscribe: 'chat:unsubscribe',
   },
+  composio: {
+    status: 'composio:status',
+    setKey: 'composio:set-key',
+    connect: 'composio:connect',
+    listToolkits: 'composio:list-toolkits',
+    toolsFor: 'composio:tools-for',
+  },
   // `satisfies` makes drift between this map and IpcContract a compile error.
 } as const satisfies Record<string, Record<string, IpcChannel>>;
 
@@ -342,6 +349,52 @@ export interface IpcContract {
   'chat:cancel': { request: Empty; response: Ack };
   'chat:subscribe': { request: Empty; response: Ack };
   'chat:unsubscribe': { request: Empty; response: Ack };
+
+  /* composio ------------------------------------------------------ */
+  'composio:status': { request: Empty; response: ComposioStatus };
+  'composio:set-key': { request: { apiKey: string }; response: ComposioStatus };
+  'composio:connect': { request: Empty; response: ComposioConnectResult };
+  'composio:list-toolkits': { request: Empty; response: ComposioToolkit[] };
+  'composio:tools-for': {
+    request: { toolkitSlug: string };
+    response: ComposioToolInfo[];
+  };
+}
+
+/** Whether Composio is configured and what is connected. */
+export interface ComposioStatus {
+  /** True once a non-empty API key is saved. */
+  configured: boolean;
+  /** True if the saved key passed a verification call. */
+  verified: boolean;
+  /** Verification error, if the key was rejected. */
+  error?: string;
+  /** Slugs of the user's ACTIVE connected toolkits. */
+  connectedToolkits: string[];
+}
+
+/** A toolkit the user can connect (Gmail, Slack, …). */
+export interface ComposioToolkit {
+  slug: string;
+  name: string;
+  /** True if the user already has an active connection to it. */
+  connected: boolean;
+}
+
+/** Outcome of opening Composio's connections page. */
+export interface ComposioConnectResult {
+  /** True if the browser was opened to the connections page. */
+  opened: boolean;
+  /** The URL (so the UI can offer a manual link if the browser didn't open). */
+  url: string;
+  error?: string;
+}
+
+/** One tool available for a connected toolkit — proof the wiring works. */
+export interface ComposioToolInfo {
+  slug: string;
+  name: string;
+  description: string;
 }
 
 /**

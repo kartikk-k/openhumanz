@@ -54,6 +54,7 @@ import settingsAppModule, {
 } from './modules/settings';
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
+import { createComposioModule } from './modules/composio';
 import { createChatModule } from './modules/chat';
 import { createChatSessionRunner } from './services/chat-session-runner';
 import { CLAUDE_CODE_ENGINE_ID } from './services/engines/claude-code';
@@ -200,6 +201,10 @@ export async function bootstrap(): Promise<AppServices> {
   // below once the MCP server exists (it needs the tool surface + approvals).
   const chatModule = createChatModule();
 
+  // Composio: third-party connectors. The API key comes from settings; the
+  // browser open uses electron's shell.
+  const composioModule = createComposioModule();
+
   const registry = createRegistry({
     modules: [
       approvalsModule,
@@ -211,6 +216,7 @@ export async function bootstrap(): Promise<AppServices> {
       settingsAppModule,
       macosAppModule,
       createDialogModule(),
+      composioModule,
       chatModule,
     ],
     db,
@@ -305,6 +311,32 @@ export async function bootstrap(): Promise<AppServices> {
     runs: getRunStore(),
     logger: logger.child('notifications'),
   }).start();
+
+  // Composio: open consent URLs in the system browser, seed the key from
+  // settings, and persist it back when the user changes it in the UI.
+  composioModule.configure({
+    openExternal: async (url: string) => {
+      try {
+        // eslint-disable-next-line global-require, @typescript-eslint/no-var-requires
+        await require('electron').shell.openExternal(url);
+      } catch {
+        /* headless / no shell */
+      }
+    },
+  });
+  getSettingsStore()
+    .get()
+    .then((settings) => {
+      composioModule.setApiKey(settings.composio?.apiKey ?? '');
+      return undefined;
+    })
+    .catch(() => {});
+  appEvents.on('composio:save-key', ({ apiKey }) => {
+    composioModule.setApiKey(apiKey);
+    void getSettingsStore()
+      .set({ composio: { apiKey } })
+      .catch((error) => logger.error('failed to save composio key', error));
+  });
 
   logger.info('ready', { tools: registry.tools().length });
 

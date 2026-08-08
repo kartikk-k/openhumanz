@@ -32,6 +32,7 @@
     "build:renderer": "cross-env NODE_ENV=production TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.renderer.prod.ts",
     "generate:icons": "bun ./.erb/scripts/generate-icons.mjs",
     "mcp:inspect": "bun ./.erb/scripts/mcp-inspect.mjs",
+    "composio:check": "bun ./.erb/scripts/composio-check.mjs",
     "postinstall": "cd release/app && bun install && cd ../.. && bun run build:dll",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
@@ -94,6 +95,7 @@
     }
   },
   "dependencies": {
+    "@composio/core": "^0.15.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@tanstack/react-virtual": "^3.14.9",
     "chokidar": "^5.0.0",
@@ -269,7 +271,9 @@
     "patterns": [
       "!**/**",
       "src/main/**",
-      ".erb/dll/**"
+      ".erb/dll/main.bundle.dev.js",
+      ".erb/dll/preload.js",
+      ".erb/dll/shim.js"
     ],
     "logLevel": "quiet"
   }

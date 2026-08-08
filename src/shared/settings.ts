@@ -92,6 +92,18 @@ export const LoggingSettingsSchema = z.object({
 export type LoggingSettings = z.infer<typeof LoggingSettingsSchema>;
 
 /**
+ * Composio — the "bring your own account" connector. The API key is the user's
+ * own Composio org credential; their connected apps live in their account. It
+ * is stored here in plain settings.json, consistent with the app's local-files
+ * model (nothing is uploaded anywhere but Composio, and only when the user acts).
+ */
+export const ComposioSettingsSchema = z.object({
+  /** The user's Composio API key. Empty means "not connected". */
+  apiKey: z.string().default(''),
+});
+export type ComposioSettings = z.infer<typeof ComposioSettingsSchema>;
+
+/**
  * Note on `.prefault({})` rather than `.default({})`:
  * in zod v4 `.default()` takes the schema's *output* type, so a nested object
  * whose every leaf has a default still cannot be defaulted from `{}` — the
@@ -109,6 +121,7 @@ export const SettingsSchema = z.object({
   ui: UiSettingsSchema.prefault({}),
   notifications: NotificationSettingsSchema.prefault({}),
   logging: LoggingSettingsSchema.prefault({}),
+  composio: ComposioSettingsSchema.prefault({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The shape you may hand to `SettingsSchema.parse` — everything optional. */
@@ -136,6 +149,7 @@ export const SettingsPatchSchema = z.object({
   ui: patchSchema(UiSettingsSchema).optional(),
   notifications: patchSchema(NotificationSettingsSchema).optional(),
   logging: patchSchema(LoggingSettingsSchema).optional(),
+  composio: patchSchema(ComposioSettingsSchema).optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 
