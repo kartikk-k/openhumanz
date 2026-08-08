@@ -249,6 +249,52 @@ const REVOKE_GRANT = `UPDATE approvals_grants SET revoked_at = ?
 const EXPIRE_RUN_GRANTS = `UPDATE approvals_grants SET revoked_at = ?
   WHERE scope = 'run' AND run_id = ? AND revoked_at IS NULL`;
 
+const AUDIT_COLUMNS = `id, approval_id, run_id, tool_name, action,
+  tool_arguments, decision, scope, decided_by, at`;
+
+/**
+ * The `WHERE` for an audit query, built once so the page and its count can
+ * never disagree about what they are looking at.
+ *
+ * Only literal fragments from this file reach the SQL text; every value the
+ * caller supplied is bound.
+ */
+function auditWhere(filter: AuditFilter): {
+  where: string;
+  params: SqlParam[];
+} {
+  const clauses: string[] = [];
+  const params: SqlParam[] = [];
+  if (filter.approvalId) {
+    clauses.push('approval_id = ?');
+    params.push(filter.approvalId);
+  }
+  if (filter.runId) {
+    clauses.push('run_id = ?');
+    params.push(filter.runId);
+  }
+  if (filter.toolName) {
+    clauses.push('tool_name = ?');
+    params.push(filter.toolName);
+  }
+  if (filter.decision) {
+    clauses.push('decision = ?');
+    params.push(filter.decision);
+  }
+  if (filter.since) {
+    clauses.push('at >= ?');
+    params.push(filter.since);
+  }
+  if (filter.until) {
+    clauses.push('at <= ?');
+    params.push(filter.until);
+  }
+  return {
+    where: clauses.length > 0 ? ` WHERE ${clauses.join(' AND ')}` : '',
+    params,
+  };
+}
+
 const INSERT_AUDIT = `INSERT INTO approvals_audit
   (id, approval_id, run_id, tool_name, action, tool_arguments, decision, scope,
    decided_by, at)
@@ -346,6 +392,8 @@ export interface ApprovalStore {
 
   insertAudit(input: InsertAuditInput): void;
   queryAudit(filter?: AuditFilter): ApprovalAuditEntry[];
+  /** How many rows the same filter matches, ignoring `limit` / `offset`. */
+  countAudit(filter?: AuditFilter): number;
 }
 
 export function createStore(db: Db): ApprovalStore {
@@ -530,40 +578,24 @@ export function createStore(db: Db): ApprovalStore {
     },
 
     queryAudit(filter = {}) {
-      const clauses: string[] = [];
-      const params: SqlParam[] = [];
-      if (filter.approvalId) {
-        clauses.push('approval_id = ?');
-        params.push(filter.approvalId);
-      }
-      if (filter.runId) {
-        clauses.push('run_id = ?');
-        params.push(filter.runId);
-      }
-      if (filter.toolName) {
-        clauses.push('tool_name = ?');
-        params.push(filter.toolName);
-      }
-      if (filter.decision) {
-        clauses.push('decision = ?');
-        params.push(filter.decision);
-      }
-      if (filter.since) {
-        clauses.push('at >= ?');
-        params.push(filter.since);
-      }
-      if (filter.until) {
-        clauses.push('at <= ?');
-        params.push(filter.until);
-      }
-      const where = clauses.length > 0 ? ` WHERE ${clauses.join(' AND ')}` : '';
+      const { where, params } = auditWhere(filter);
       const sql =
-        `SELECT id, approval_id, run_id, tool_name, action, tool_arguments,` +
-        ` decision, scope, decided_by, at FROM approvals_audit${where}` +
+        `SELECT ${AUDIT_COLUMNS} FROM approvals_audit${where}` +
         ` ORDER BY at DESC, rowid DESC LIMIT ? OFFSET ?`;
-      params.push(Math.min(Math.max(filter.limit ?? 200, 1), 2000));
-      params.push(Math.max(filter.offset ?? 0, 0));
-      return db.all(sql, params).map(toAuditEntry);
+      return db
+        .all(sql, [
+          ...params,
+          Math.min(Math.max(filter.limit ?? 200, 1), 2000),
+          Math.max(filter.offset ?? 0, 0),
+        ])
+        .map(toAuditEntry);
+    },
+
+    countAudit(filter = {}) {
+      const { where, params } = auditWhere(filter);
+      return Number(
+        db.pluck(`SELECT COUNT(*) FROM approvals_audit${where}`, params) ?? 0,
+      );
     },
   };
 }

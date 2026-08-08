@@ -588,6 +588,10 @@ export function createApprovalService(
       return store.queryAudit(filter);
     },
 
+    countAudit(filter: AuditFilter = {}): number {
+      return store.countAudit(filter);
+    },
+
     /* ---------------------------------------------------------------- */
     /* Registration                                                      */
     /* ---------------------------------------------------------------- */

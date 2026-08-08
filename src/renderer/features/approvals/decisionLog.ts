@@ -1,16 +1,15 @@
 /**
  * Decisions made in this window, with the arguments they were made about.
  *
- * **This is a stand-in, and it is labelled as one in the UI.** Main already
- * keeps the real thing: `approvals_audit` holds every decision with its full
- * arguments, and `ApprovalService.queryAudit(filter)` reads it
- * (`src/main/modules/approvals/types.ts`). What does not exist is a way to ask
- * for it from the renderer — `src/shared/ipc.ts` declares exactly four
- * approvals channels (`list-pending`, `resolve`, `list-grants`,
- * `revoke-grant`) and none of them is the audit log. Inventing a channel name
- * here would compile and then fail forever, so this screen shows what it can
- * legitimately observe — the decisions this window made — and says plainly that
- * the durable history needs `approvals:list-audit` to exist.
+ * **This is the fallback, not the record.** The record lives in main:
+ * `approvals_audit` holds every decision with its full arguments and
+ * `approvals:list-audit` reads it, which is what `HistoryPanel` shows whenever
+ * the channel answers. This store exists for the case where it does not — a
+ * renderer with no bridge, or a main process that has not registered the
+ * approvals module — so that a window which watched the user press a button
+ * can still show what it saw instead of an empty page. It is labelled as
+ * partial on screen, because it starts empty on every restart and never
+ * contains the decisions a standing grant made in main.
  *
  * Deliberately *not* fed from `push:approval-resolved`: `store/bootstrap.ts`
  * owns that subscription, and a second listener for the same channel is how two

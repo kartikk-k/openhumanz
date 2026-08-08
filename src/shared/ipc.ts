@@ -17,6 +17,8 @@
 import type { Page } from './common';
 import type {
   Approval,
+  ApprovalAuditEntry,
+  ApprovalAuditQueryInput,
   ApprovalDecision,
   ApprovalGrant,
   ApprovalResolution,
@@ -94,6 +96,7 @@ export const IPC = {
     resolve: 'approvals:resolve',
     listGrants: 'approvals:list-grants',
     revokeGrant: 'approvals:revoke-grant',
+    listAudit: 'approvals:list-audit',
   },
   tasks: {
     list: 'tasks:list',
@@ -217,6 +220,19 @@ export interface IpcContract {
     response: ApprovalGrant[];
   };
   'approvals:revoke-grant': { request: ByIdRequest; response: Deleted };
+  /**
+   * The durable decision log — every approval that was ever answered, with the
+   * arguments it was answered about, including the ones a standing grant
+   * answered on the user's behalf.
+   *
+   * Renderer-only, deliberately. This is the user's oversight record of the
+   * agent, so it is never published as an MCP tool: the agent has no business
+   * reading the log of what it was allowed to do.
+   */
+  'approvals:list-audit': {
+    request: ApprovalAuditQueryInput;
+    response: Page<ApprovalAuditEntry>;
+  };
 
   /* tasks --------------------------------------------------------- */
   'tasks:list': { request: TaskQueryInput; response: Page<Task> };

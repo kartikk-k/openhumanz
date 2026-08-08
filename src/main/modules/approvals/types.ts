@@ -147,6 +147,11 @@ export interface ApprovalService extends ApprovalGate {
   revokeGrant(id: string): boolean;
   /** The audit log. Every decision, with the arguments it was made about. */
   queryAudit(filter?: AuditFilter): ApprovalAuditEntry[];
+  /**
+   * How many rows `filter` matches in total, ignoring its `limit` / `offset`.
+   * What a paged reader needs to say "showing 50 of 812" honestly.
+   */
+  countAudit(filter?: AuditFilter): number;
 
   /* --- registration ----------------------------------------------- */
   /** Take `sideEffecting` and `summarize` from the live MCP tool surface. */

@@ -2,8 +2,12 @@
  * The approvals module.
  *
  * Owns `approvals_requests`, `approvals_grants` and `approvals_audit`; serves
- * the four `approvals:*` IPC channels; and exports the {@link ApprovalGate} the
- * MCP server injects into its tool-dispatch path.
+ * the `approvals:*` IPC channels; and exports the {@link ApprovalGate} the MCP
+ * server injects into its tool-dispatch path.
+ *
+ * It publishes **no MCP tools**, and `approvals:list-audit` in particular is
+ * renderer-only. The audit log is the user's oversight record of the agent;
+ * handing the agent a way to read it would invert what it is for.
  *
  * Wiring, once:
  *   1. add this module to the registry list in `main.ts`
@@ -25,7 +29,13 @@
 import { defineModule } from '../types';
 import type { AppModule, ModuleContext } from '../types';
 import type { Deleted } from '../../../shared/ipc';
-import type { Approval, ApprovalGrant } from '../../../shared/approvals';
+import type { Page } from '../../../shared/common';
+import { ApprovalAuditQuerySchema } from '../../../shared/approvals';
+import type {
+  Approval,
+  ApprovalAuditEntry,
+  ApprovalGrant,
+} from '../../../shared/approvals';
 import type { Unsubscribe } from '../../infra/events';
 import { migrations } from './migrations';
 import { createApprovalService } from './gate';
@@ -104,6 +114,25 @@ const approvalsModule: AppModule = defineModule({
       id: request.id,
       deleted: getApprovalGate().revokeGrant(request.id),
     }),
+
+    /*
+     * The decision log. Renderer-only: it is the user's record of what the
+     * agent was allowed to do, and there is no MCP tool over it — this module
+     * publishes no tools at all, and that is deliberate rather than pending.
+     *
+     * The count is taken with the same filter as the page so "50 of 812" is a
+     * statement about the same set of rows the user is looking at.
+     */
+    'approvals:list-audit': (request): Page<ApprovalAuditEntry> => {
+      const query = ApprovalAuditQuerySchema.parse(request ?? {});
+      const gate = getApprovalGate();
+      return {
+        items: gate.queryAudit(query),
+        total: gate.countAudit(query),
+        limit: query.limit,
+        offset: query.offset,
+      };
+    },
   },
 
   async start(ctx: ModuleContext) {

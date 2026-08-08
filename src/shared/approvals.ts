@@ -109,7 +109,15 @@ export const ApprovalPendingHandleSchema = z.object({
 });
 export type ApprovalPendingHandle = z.infer<typeof ApprovalPendingHandleSchema>;
 
-/** Audit row. Every decision is logged with full arguments. */
+/**
+ * Audit row. Every decision is logged with full arguments.
+ *
+ * This is the renderer-safe view of `approvals_audit`. The table also carries
+ * the classifier-derived `action` column, which is an internal detail of how
+ * the gate fingerprints a generic dispatcher and means nothing to a reader, so
+ * it stops at the module boundary. Nothing else is withheld: the whole value of
+ * this record is that it is complete.
+ */
 export const ApprovalAuditEntrySchema = z.object({
   id: IdSchema,
   approvalId: IdSchema,
@@ -123,3 +131,28 @@ export const ApprovalAuditEntrySchema = z.object({
   at: IsoDateTimeSchema,
 });
 export type ApprovalAuditEntry = z.infer<typeof ApprovalAuditEntrySchema>;
+
+/**
+ * Query for {@link ApprovalAuditEntry} history.
+ *
+ * The shared half of the module's internal `AuditFilter`. Every filter it has
+ * is here — the log is the user's oversight record and there is nothing in it
+ * they should have to ask main for twice — with one difference: `limit` is
+ * capped at 500 rather than left open, because a renderer asking for the whole
+ * table is a bug rather than a request.
+ *
+ * `since` / `until` are inclusive ISO bounds, matched against {@link
+ * ApprovalAuditEntry.at}.
+ */
+export const ApprovalAuditQuerySchema = z.object({
+  approvalId: IdSchema.optional(),
+  runId: IdSchema.optional(),
+  toolName: z.string().min(1).optional(),
+  decision: ApprovalDecisionSchema.optional(),
+  since: IsoDateTimeSchema.optional(),
+  until: IsoDateTimeSchema.optional(),
+  limit: z.number().int().positive().max(500).default(50),
+  offset: z.number().int().nonnegative().default(0),
+});
+export type ApprovalAuditQuery = z.infer<typeof ApprovalAuditQuerySchema>;
+export type ApprovalAuditQueryInput = z.input<typeof ApprovalAuditQuerySchema>;
