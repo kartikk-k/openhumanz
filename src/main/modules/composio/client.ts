@@ -89,6 +89,13 @@ export interface ComposioClient {
   execute(slug: string, args: Record<string, unknown>): Promise<unknown>;
 }
 
+/**
+ * How many tools to request per toolkit. `tools.get` defaults to ~20 and
+ * truncates silently, which hid most of each app's tools (Gmail showed 20 of
+ * 63). No connected toolkit approaches this, so it fetches the whole set.
+ */
+const TOOLS_PER_TOOLKIT_LIMIT = 500;
+
 /** Tags that mean a tool writes, overriding a stray `readOnlyHint`. */
 const WRITE_HINT = /create|update|delete|destructive|write/i;
 
@@ -206,6 +213,7 @@ export async function createComposioClient(
       const userId = map.get(toolkitSlug) ?? COMPOSIO_USER_ID;
       const raw = (await sdk.tools.get(userId, {
         toolkits: [toolkitSlug],
+        limit: TOOLS_PER_TOOLKIT_LIMIT,
       })) as unknown;
       // The default provider returns an array of tool descriptors. Normalise a
       // few shapes defensively — the SDK's wrapper output has churned.
@@ -236,19 +244,22 @@ export async function createComposioClient(
 
     async rawToolsForConnected() {
       const map = await toolkitUserIds();
-      const slugs = [...map.keys()];
-      if (slugs.length === 0) return [];
-      // Fetch each toolkit's tools under the user id that owns its account, so
-      // the tools we expose are the ones we can actually execute. (Fetching all
-      // toolkits under one id would only work if they shared it.)
-      const byUser = new Map<string, string[]>();
-      for (const [toolkit, userId] of map) {
-        byUser.set(userId, [...(byUser.get(userId) ?? []), toolkit]);
-      }
+      if (map.size === 0) return [];
+      // One `tools.get` per toolkit, under the user id that owns its account.
+      // Two traps this avoids:
+      //  - `tools.get` has a small default page (~20). Passing several toolkits
+      //    in one call fills that page with the first toolkit and silently
+      //    drops the rest — so a connected app (e.g. Linear) returns ZERO tools.
+      //    One toolkit per call gives each its own page.
+      //  - Even a single toolkit is truncated at ~20 without an explicit limit,
+      //    so Gmail showed 20 of its 63 tools. Ask for a high limit.
       const out: unknown[] = [];
-      for (const [userId, toolkits] of byUser) {
+      for (const [toolkit, userId] of map) {
         // eslint-disable-next-line no-await-in-loop
-        const raw = (await sdk.tools.get(userId, { toolkits })) as unknown;
+        const raw = (await sdk.tools.get(userId, {
+          toolkits: [toolkit],
+          limit: TOOLS_PER_TOOLKIT_LIMIT,
+        })) as unknown;
         out.push(...toDescriptorList(raw));
       }
       return out;

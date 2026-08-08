@@ -242,6 +242,27 @@ export async function bootstrap(): Promise<AppServices> {
   gate.registerTools(registry.tools());
   mcp.setApprovalGate(gate);
 
+  // `composio_app_execute` is a generic dispatcher: one tool that runs any
+  // connected-app tool. The gate must classify on what is actually being run,
+  // not on the router name — otherwise an "always allow" on a read would
+  // authorise every write, and reads would prompt. Key the capability on the
+  // `tool` argument and take read/write from the module's live cache.
+  gate.registerClassifier('composio_app_execute', ({ args }) => {
+    const tool = typeof args.tool === 'string' ? args.tool : '';
+    const app = typeof args.app === 'string' ? args.app : '';
+    if (!tool || !composioModule.isKnownTool(tool)) {
+      // Unknown tool: fail closed (side-effecting) and let the handler explain.
+      return { action: tool || 'unknown', sideEffecting: true };
+    }
+    const readOnly = composioModule.isReadOnlyTool(tool);
+    return {
+      // The real tool slug is the action, so grants never cross tools.
+      action: tool,
+      sideEffecting: !readOnly,
+      title: `${app || 'App'} · ${tool}`,
+    };
+  });
+
   // Wire Chat to the same Claude Code adapter + MCP surface the runs use, so a
   // chat message has the full tool set and hits the same approval gate.
   const chatAdapter = engines.get(CLAUDE_CODE_ENGINE_ID);

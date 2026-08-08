@@ -129,7 +129,7 @@ function objectToZod(schema: JsonSchema): z.ZodTypeAny {
 }
 
 /** Read a Composio tool's name/description/parameters from either shape. */
-function readComposioTool(raw: unknown): {
+export function readComposioTool(raw: unknown): {
   name: string;
   description: string;
   parameters: JsonSchema | undefined;

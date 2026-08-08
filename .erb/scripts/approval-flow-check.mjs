@@ -333,6 +333,84 @@ async function main() {
   runClient.socket.destroy();
   mcp.revokeStep(runStep);
 
+  /* ---- 5. Composio router classifier: reads pass, writes gate, per-tool ---- */
+  console.log(
+    c.bold('\n5) Composio router: reads run, writes gate, grant is per-tool'),
+  );
+  const hasRouter = tools.some((t) => t.name === 'composio_app_execute');
+  if (!hasRouter) {
+    console.log(c.dim('  (composio_app_execute not present — skipping)'));
+  } else {
+    // The module refreshes its cache asynchronously at boot; make sure it has
+    // finished (and the read-only set is loaded) before we assert on it.
+    const composio = services.registry.modules.find((m) => m.id === 'composio');
+    if (composio?.refreshTools) await composio.refreshTools();
+    // The gate consults its classifier; we don't need the socket for this — call
+    // gate.check directly with the router tool name and a { tool } argument, the
+    // same shape runToolCall passes. A read tool must allow; a write must pend.
+    const readTool = 'GMAIL_FETCH_EMAILS';
+    const writeTool = 'GMAIL_SEND_EMAIL';
+    // Clear any standing grants so the write actually prompts.
+    for (const g of gate.listGrants({ toolName: 'composio_app_execute' })) {
+      gate.revokeGrant(g.id);
+    }
+    const readVerdict = await gate.check(
+      'composio_app_execute',
+      { app: 'gmail', tool: readTool, arguments: {} },
+      { runId: 'router-check', stepId: 'router-check' },
+    );
+    assert(
+      readVerdict === 'allow',
+      'a read tool (GMAIL_FETCH_EMAILS) runs without approval',
+      typeof readVerdict === 'object' ? JSON.stringify(readVerdict) : String(readVerdict),
+    );
+    const writeVerdict = await gate.check(
+      'composio_app_execute',
+      { app: 'gmail', tool: writeTool, arguments: { to: 'x@y.z' } },
+      { runId: 'router-check', stepId: 'router-check' },
+    );
+    const writePends =
+      typeof writeVerdict === 'object' && writeVerdict && 'pending' in writeVerdict;
+    assert(
+      writePends,
+      'a write tool (GMAIL_SEND_EMAIL) is routed through approval',
+      typeof writeVerdict === 'string' ? writeVerdict : '',
+    );
+    if (writePends) {
+      // Approve it "always", then a DIFFERENT write tool must still prompt —
+      // the grant is per real tool, not for the whole router.
+      gate.resolve({
+        approvalId: writeVerdict.pending,
+        decision: 'approve',
+        scope: 'always',
+      });
+      const otherWrite = await gate.check(
+        'composio_app_execute',
+        { app: 'gmail', tool: 'GMAIL_DELETE_MESSAGE', arguments: { id: '1' } },
+        { runId: 'router-check', stepId: 'router-check' },
+      );
+      const otherPends =
+        typeof otherWrite === 'object' && otherWrite && 'pending' in otherWrite;
+      assert(
+        otherPends,
+        '"always allow" on one write tool does NOT authorise a different write tool',
+      );
+      // And the SAME write tool now passes under its standing grant.
+      const sameAgain = await gate.check(
+        'composio_app_execute',
+        { app: 'gmail', tool: writeTool, arguments: { to: 'other@y.z' } },
+        { runId: 'router-check', stepId: 'router-check' },
+      );
+      assert(
+        sameAgain === 'allow',
+        'the granted write tool now runs (even with different args)',
+      );
+      for (const g of gate.listGrants({ toolName: 'composio_app_execute' })) {
+        gate.revokeGrant(g.id);
+      }
+    }
+  }
+
   /* ---- done ---- */
   console.log('');
   if (failures === 0) {

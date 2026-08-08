@@ -26,7 +26,9 @@ import type {
 } from '../../../shared/ipc';
 import type { ComposioClient } from './client';
 import { createComposioClient } from './client';
-import { composioToolToDefinition } from './tools';
+import { readComposioTool } from './tools';
+import type { RouterToolEntry } from './router';
+import { createRouterTools } from './router';
 
 /**
  * Where the user manages connections. Composio's own dashboard owns the OAuth
@@ -54,11 +56,16 @@ export interface ComposioModule extends AppModule {
   /** Push the API key from settings (on boot and whenever settings change). */
   setApiKey(key: string): void;
   /**
-   * The connected apps' tools, as agent tools. Returned live for the registry's
-   * dynamic-tool provider, from a cache that {@link ComposioModule.refreshTools}
-   * fills. Empty until the first refresh (or when nothing is connected).
+   * The agent's Composio surface: the three static router tools
+   * (`composio_connected_apps` / `composio_app_tools` / `composio_app_execute`).
+   * Constant regardless of how many apps are connected — the connected apps'
+   * hundreds of tools are held as data behind the router, not put on the surface.
    */
   dynamicTools(): AnyToolDefinition[];
+  /** True when the given connected-app tool slug is read-only (never gated). */
+  isReadOnlyTool(slug: string): boolean;
+  /** True when the slug is a known connected-app tool. */
+  isKnownTool(slug: string): boolean;
   /** Re-fetch the connected apps' tools and rebuild the cache. */
   refreshTools(): Promise<void>;
 }
@@ -72,8 +79,25 @@ export function createComposioModule(): ComposioModule {
   let apiKey = '';
   let client: ComposioClient | null = null;
   let clientKey = '';
-  /** The connected apps' tools, as agent tools. Rebuilt by refreshTools(). */
-  let cachedTools: AnyToolDefinition[] = [];
+
+  /**
+   * The connected apps' tools, as data (not agent tools). The agent's surface is
+   * the three static router tools; this cache is what they read. Keyed by tool
+   * slug so the router can look one up on execute.
+   */
+  const toolCache = new Map<string, RouterToolEntry>();
+  /** Human-readable app names, keyed by slug (e.g. `linear` -> `Linear`). */
+  const appNames = new Map<string, string>();
+
+  /** A nice display name for an app slug — from connections, else title-cased. */
+  const appDisplayName = (slug: string): string => {
+    const known = appNames.get(slug);
+    if (known) return known;
+    return slug.replace(
+      /(^|[-_])(\w)/g,
+      (_, sep, ch) => (sep ? ' ' : '') + ch.toUpperCase(),
+    );
+  };
 
   /** Build (or reuse) a client for the current key. Null when no key. */
   const getClient = async (): Promise<ComposioClient | null> => {
@@ -84,42 +108,47 @@ export function createComposioModule(): ComposioModule {
     return client;
   };
 
-  /** Rebuild the cached agent tools from the connected apps. */
+  /** Rebuild the tool cache from the connected apps. */
   const refreshTools = async (): Promise<void> => {
     const c = await getClient().catch(() => null);
     if (!c) {
-      cachedTools = [];
+      toolCache.clear();
+      appNames.clear();
       return;
     }
     try {
-      const [raw, readOnly] = await Promise.all([
+      const [raw, readOnly, connections] = await Promise.all([
         c.rawToolsForConnected(),
         c.readOnlySlugs().catch(() => new Set<string>()),
+        c.listConnections().catch(() => []),
       ]);
-      const built = raw
-        .map((tool) => {
-          const slug =
-            (
-              tool as {
-                function?: { name?: string };
-                slug?: string;
-                name?: string;
-              }
-            ).function?.name ??
-            (tool as { slug?: string }).slug ??
-            (tool as { name?: string }).name ??
-            '';
-          return composioToolToDefinition(
-            tool,
-            (s, args) => c.execute(s, args),
-            readOnly.has(slug),
-          );
-        })
-        .filter((t): t is AnyToolDefinition => t !== null);
-      cachedTools = built;
+
+      appNames.clear();
+      for (const conn of connections) {
+        if (conn.toolkitSlug) {
+          appNames.set(conn.toolkitSlug, appDisplayName(conn.toolkitSlug));
+        }
+      }
+
+      toolCache.clear();
+      for (const rawTool of raw) {
+        const parsed = readComposioTool(rawTool);
+        if (!parsed) continue;
+        // Tool slugs are `TOOLKIT_ACTION`; the app is the first segment.
+        const app = parsed.name.split('_')[0]?.toLowerCase() ?? '';
+        toolCache.set(parsed.name, {
+          slug: parsed.name,
+          app,
+          name: parsed.name,
+          description: parsed.description,
+          parameters: parsed.parameters ?? {},
+          readOnly: readOnly.has(parsed.name),
+        });
+      }
       logger?.info('composio tools refreshed', {
-        count: built.length,
-        readOnly: built.filter((t) => t.sideEffecting === false).length,
+        tools: toolCache.size,
+        apps: new Set([...toolCache.values()].map((t) => t.app)).size,
+        readOnly: [...toolCache.values()].filter((t) => t.readOnly).length,
       });
     } catch (error) {
       logger?.error('composio tools refresh failed', {
@@ -127,6 +156,46 @@ export function createComposioModule(): ComposioModule {
       });
     }
   };
+
+  /** Group the cache by app for the `apps()` / `toolsForApp()` router backend. */
+  const appsSummary = (): {
+    slug: string;
+    name: string;
+    toolCount: number;
+  }[] => {
+    const counts = new Map<string, number>();
+    for (const t of toolCache.values()) {
+      counts.set(t.app, (counts.get(t.app) ?? 0) + 1);
+    }
+    return [...counts.entries()]
+      .map(([slug, toolCount]) => ({
+        slug,
+        name: appDisplayName(slug),
+        toolCount,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  };
+
+  /** The three router tools, wired to this module's live cache. */
+  const routerTools = createRouterTools({
+    apps: appsSummary,
+    toolsForApp: (app) => {
+      const wanted = app.toLowerCase();
+      return [...toolCache.values()].filter((t) => t.app === wanted);
+    },
+    toolBySlug: (slug) => toolCache.get(slug),
+    execute: async (slug, args) => {
+      const c = await getClient();
+      if (!c) throw new Error('Composio is not configured.');
+      return c.execute(slug, args);
+    },
+  });
+
+  /** The read-only status of a Composio tool slug, for the gate's classifier. */
+  const isReadOnlyTool = (slug: string): boolean =>
+    toolCache.get(slug)?.readOnly ?? false;
+  /** Whether a slug is a known connected-app tool. */
+  const isKnownTool = (slug: string): boolean => toolCache.has(slug);
 
   const readStatus = async (): Promise<ComposioStatus> => {
     if (!apiKey) {
@@ -258,8 +327,12 @@ export function createComposioModule(): ComposioModule {
     },
 
     dynamicTools() {
-      return cachedTools;
+      // Always the three router tools; they read the live cache internally.
+      return routerTools;
     },
+
+    isReadOnlyTool,
+    isKnownTool,
 
     refreshTools,
 
