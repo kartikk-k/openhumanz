@@ -98,6 +98,18 @@ interface RunOptions {
 const DISALLOWED_CLI_TOOLS = ['CronCreate', 'CronList', 'CronDelete'];
 
 /**
+ * How long the CLI should keep a chat tool call alive with no response.
+ *
+ * A side-effecting chat tool call blocks on the MCP side until the user answers
+ * its inline approval, which can take minutes. Claude Code aborts a stdio MCP
+ * tool call that is idle (no response, no progress) past this window — 30 min by
+ * default, which we raise to be safe. The MCP server also heartbeats progress
+ * every ~20s while waiting, which resets this timer when the CLI honours it;
+ * this generous ceiling is the belt to that suspenders. 2 hours in ms.
+ */
+const CHAT_MCP_IDLE_TIMEOUT_MS = '7200000';
+
+/**
  * Steer scheduling toward the app's persistent scheduler.
  *
  * The app's tools reach the model as MCP tools named `mcp__assistant__<tool>`,
@@ -142,16 +154,24 @@ export function createChatSessionRunner(
 
   return {
     async runTurn(request, onEvent) {
-      const stepId = `chat-${request.freshSessionId ?? request.resumeSessionId ?? 'turn'}-${jitter()}`;
+      // The session id is stable across a session's turns; the step id is unique
+      // per turn. Keying the run on the session (not a per-turn value, nor the
+      // constant 'chat') is what makes a "For this chat" grant reach later turns
+      // of the same conversation while never leaking into a different chat.
+      const chatSessionId =
+        request.freshSessionId ?? request.resumeSessionId ?? 'chat';
+      const chatRunId = `chat:${chatSessionId}`;
+      const stepId = `chat-${chatSessionId}-${jitter()}`;
       const allowed = deps.allowedTools();
 
-      // Give this turn the app's tools + approval gate, exactly like a run step.
-      // The scope is keyed by stepId; we address it by id below, so the return
-      // value is not needed.
+      // Give this turn the app's tools + approval gate, exactly like a run step —
+      // but marked interactive, so a pending approval holds the tool call open
+      // and the turn continues in place once the user decides in the chat.
       mcp.registerStep({
         stepId,
-        runId: 'chat',
+        runId: chatRunId,
         allowedTools: allowed,
+        interactive: true,
       });
       let mcpConfigPath: string | undefined;
       let cleanupConfig: (() => Promise<void>) | undefined;
@@ -187,7 +207,12 @@ export function createChatSessionRunner(
         maxTurns: request.maxTurns ?? DEFAULT_CHAT_MAX_TURNS,
         maxCostUsd: request.maxCostUsd ?? DEFAULT_CHAT_MAX_COST_USD,
         signal: request.signal,
-        env: mcp.stepEnv(stepId),
+        env: {
+          ...mcp.stepEnv(stepId),
+          // Let a chat tool call wait for the user's inline approval without the
+          // CLI aborting it as idle. See CHAT_MCP_IDLE_TIMEOUT_MS.
+          CLAUDE_CODE_MCP_TOOL_IDLE_TIMEOUT: CHAT_MCP_IDLE_TIMEOUT_MS,
+        },
         logger,
       };
 

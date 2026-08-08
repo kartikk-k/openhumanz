@@ -337,6 +337,13 @@ export async function bootstrap(): Promise<AppServices> {
       .set({ composio: { apiKey } })
       .catch((error) => logger.error('failed to save composio key', error));
   });
+  // Expose the connected apps' tools to the agent through the registry's
+  // dynamic-tool provider. Consulted live, so a newly-connected app's tools
+  // reach chat and Claude Code with no restart.
+  registry.registerDynamicToolProvider(() => composioModule.dynamicTools());
+  appEvents.on('composio:connections-changed', () => {
+    void composioModule.refreshTools();
+  });
 
   logger.info('ready', { tools: registry.tools().length });
 

@@ -22,6 +22,7 @@ import { textMuted, textSubtle } from '../../components/ui/styles';
 import { useChatStore } from '../../store';
 import type { ChatTurn } from '../../../shared/claudeTranscript.fold';
 import { AssistantBlocks, ChatTurnView } from './ChatTurnView';
+import { ChatApprovals } from './ChatApprovalCard';
 
 function relativeTime(ms: number): string {
   const diff = Date.now() - ms;
@@ -119,6 +120,7 @@ export function ChatScreen() {
   const pending = useChatStore((s) => s.pendingUserMessage);
   const liveTurn = useChatStore((s) => s.liveTurn);
   const send = useChatStore((s) => s.send);
+  const sessionId = useChatStore((s) => s.currentSessionId);
 
   const [draft, setDraft] = useState('');
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -194,6 +196,9 @@ export function ChatScreen() {
             {liveHasContent ? (
               <AssistantBlocks blocks={liveTurn!.blocks} />
             ) : null}
+
+            {/* A tool needs approval: decide here, and the turn continues. */}
+            <ChatApprovals sessionId={sessionId} />
 
             {/* Only show the thinking indicator before any content has streamed. */}
             {busy && !liveHasContent ? (

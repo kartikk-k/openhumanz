@@ -36,6 +36,13 @@ export interface IpcBinder {
   removeHandler(channel: string): void;
 }
 
+/**
+ * A source of tools that can change at runtime. Consulted live, so its tools
+ * appear and disappear with no restart. Must be cheap and synchronous — it is
+ * called on every tool-list request.
+ */
+export type DynamicToolProvider = () => AnyToolDefinition[];
+
 export interface RegistryOptions {
   modules: AppModule[];
   db: Db;
@@ -56,7 +63,7 @@ export interface ModuleRegistry {
   /** `stop()` each module in reverse order, then unbind IPC. Never throws. */
   stop(): Promise<void>;
 
-  /** Every registered tool, in module order. */
+  /** Every registered tool — static module tools plus any dynamic ones. */
   tools(): AnyToolDefinition[];
   tool(name: string): AnyToolDefinition | undefined;
   /** Validate arguments against the tool's schema and run it. */
@@ -65,6 +72,14 @@ export interface ModuleRegistry {
     input: unknown,
     ctx?: Partial<ToolCallContext>,
   ): Promise<unknown>;
+  /**
+   * Register a source of tools that can change at runtime (e.g. Composio's
+   * connected-app tools). The provider is consulted live on every `tools()` /
+   * `tool()` / `invokeTool()`, so connecting or disconnecting an app updates the
+   * agent's tool surface with no restart. Static module tools always win a name
+   * collision. Returns a disposer.
+   */
+  registerDynamicToolProvider(provider: DynamicToolProvider): () => void;
 
   /** Channels that have a handler. */
   channels(): IpcChannel[];
@@ -144,6 +159,30 @@ export function createRegistry(options: RegistryOptions): ModuleRegistry {
 
   const toolsByName = new Map<string, AnyToolDefinition>();
   const toolOwner = new Map<string, string>();
+  /** Runtime tool sources (e.g. Composio). Consulted live; static tools win. */
+  const dynamicProviders = new Set<DynamicToolProvider>();
+
+  /** Dynamic tools right now, keyed by name, excluding any static collisions. */
+  const dynamicToolsByName = (): Map<string, AnyToolDefinition> => {
+    const out = new Map<string, AnyToolDefinition>();
+    for (const provider of dynamicProviders) {
+      let list: AnyToolDefinition[] = [];
+      try {
+        list = provider();
+      } catch {
+        list = [];
+      }
+      for (const tool of list) {
+        // A static module tool always wins a name collision, and the first
+        // provider wins among dynamic ones.
+        if (!toolsByName.has(tool.name) && !out.has(tool.name)) {
+          out.set(tool.name, tool);
+        }
+      }
+    }
+    return out;
+  };
+
   for (const module of modules) {
     for (const tool of module.tools ?? []) {
       if (toolsByName.has(tool.name)) {
@@ -282,15 +321,15 @@ export function createRegistry(options: RegistryOptions): ModuleRegistry {
     },
 
     tools() {
-      return [...toolsByName.values()];
+      return [...toolsByName.values(), ...dynamicToolsByName().values()];
     },
 
     tool(name) {
-      return toolsByName.get(name);
+      return toolsByName.get(name) ?? dynamicToolsByName().get(name);
     },
 
     async invokeTool(name, input, ctx = {}) {
-      const tool = toolsByName.get(name);
+      const tool = toolsByName.get(name) ?? dynamicToolsByName().get(name);
       if (!tool) throw new Error(`Unknown tool: "${name}"`);
       const parsed = parseToolInput(tool, input);
       const owner = toolOwner.get(name) ?? 'tools';
@@ -298,6 +337,13 @@ export function createRegistry(options: RegistryOptions): ModuleRegistry {
         ...ctx,
         logger: ctx.logger ?? logger.child(owner),
       });
+    },
+
+    registerDynamicToolProvider(provider) {
+      dynamicProviders.add(provider);
+      return () => {
+        dynamicProviders.delete(provider);
+      };
     },
 
     channels() {

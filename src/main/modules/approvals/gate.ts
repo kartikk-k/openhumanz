@@ -514,10 +514,16 @@ export function createApprovalService(
         });
 
         if (parsed.decision === 'approve' && scope !== 'once') {
-          const label =
-            scope === 'always'
-              ? `Always allow: ${row.title}`
-              : `Allow for this run: ${row.title}`;
+          const grantScopeLabel = (): string => {
+            if (scope === 'always') return `Always allow: ${row.title}`;
+            // A chat's run id is `chat:<session>`, so a `run` grant there means
+            // "for this conversation", not "for this run".
+            if (row.runId.startsWith('chat:')) {
+              return `Allow for this chat: ${row.title}`;
+            }
+            return `Allow for this run: ${row.title}`;
+          };
+          const label = grantScopeLabel();
           store.insertGrant({
             id: randomId('grn'),
             scope,
@@ -557,6 +563,80 @@ export function createApprovalService(
         toolName: row.toolName,
       });
       return toApproval(finalRow);
+    },
+
+    /* ---------------------------------------------------------------- */
+    /* Await a decision (interactive callers only)                       */
+    /* ---------------------------------------------------------------- */
+
+    /**
+     * Block until the given pending approval is resolved.
+     *
+     * `check` still returns immediately; this is the opt-in second step chat
+     * uses to keep a tool call open and continue in place. It resolves the
+     * moment the approval leaves `pending` — by a human press, by TTL expiry, or
+     * by a run ending — reading the decision back from the persisted row rather
+     * than trusting the event payload (the row is the source of truth). Rejects
+     * only if `signal` aborts first.
+     */
+    waitForDecision(approvalId, signal) {
+      return new Promise<{ approved: boolean; reason?: string }>(
+        (resolve, reject) => {
+          // Resolve from the current row state. Returns true when the approval
+          // has left 'pending' (so we should stop waiting), false otherwise.
+          const settleFromRow = (): boolean => {
+            const row = store.getRow(approvalId);
+            if (!row) {
+              cleanup();
+              reject(new Error(`Unknown approval: ${approvalId}`));
+              return true;
+            }
+            if (row.status === 'pending') return false;
+            cleanup();
+            const denialReason = (): string => {
+              if (row.reason?.trim()) return row.reason.trim();
+              if (row.status === 'expired')
+                return 'the approval request expired';
+              if (row.status === 'cancelled')
+                return 'the request was cancelled';
+              return 'the user declined this action';
+            };
+            resolve({
+              approved: row.status === 'approved',
+              reason: row.status === 'approved' ? undefined : denialReason(),
+            });
+            return true;
+          };
+
+          let unsubscribe: (() => void) | undefined;
+          const onAbort = (): void => {
+            cleanup();
+            reject(new Error('aborted'));
+          };
+          function cleanup(): void {
+            unsubscribe?.();
+            unsubscribe = undefined;
+            signal?.removeEventListener('abort', onAbort);
+          }
+
+          if (signal?.aborted) {
+            reject(new Error('aborted'));
+            return;
+          }
+
+          // Subscribe before the first read so a resolution that lands in the
+          // gap cannot be missed. The listener re-reads the row rather than
+          // trusting the payload — same source of truth in both paths.
+          unsubscribe = events.on('approval:resolved', (payload) => {
+            if (payload.approvalId !== approvalId) return;
+            settleFromRow();
+          });
+          signal?.addEventListener('abort', onAbort, { once: true });
+
+          // Already resolved before we subscribed? Settle now.
+          settleFromRow();
+        },
+      );
     },
 
     /* ---------------------------------------------------------------- */

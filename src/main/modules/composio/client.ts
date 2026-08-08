@@ -20,6 +20,14 @@ export interface ComposioConnection {
   id: string;
   toolkitSlug: string;
   status: string;
+  /**
+   * The Composio entity the account belongs to. Connections made on Composio's
+   * dashboard are filed under a Composio-assigned user id (e.g. `pg-test-…`),
+   * not our local `default`. Executing or listing a toolkit's tools must use
+   * *this* id or Composio answers 404 / "User ID is required". Empty when the
+   * raw client did not surface it (then we fall back to {@link COMPOSIO_USER_ID}).
+   */
+  userId: string;
 }
 
 export interface ComposioToolSummary {
@@ -39,6 +47,15 @@ interface ComposioSdk {
     get(userId: string, filters: unknown): Promise<unknown>;
     execute(slug: string, body: unknown): Promise<unknown>;
   };
+  /**
+   * The underlying `@composio/client`. Its responses are snake_case and carry
+   * fields the camelCase SDK view strips — notably `user_id`, the entity a
+   * connected account belongs to, which `tools.execute` requires. Optional so a
+   * fake SDK need not provide it.
+   */
+  client?: {
+    connectedAccounts: { list(query?: unknown): Promise<unknown> };
+  };
 }
 
 export interface ComposioClient {
@@ -51,6 +68,11 @@ export interface ComposioClient {
   listConnections(): Promise<ComposioConnection[]>;
   /** The tools available for one connected toolkit. */
   toolsForToolkit(toolkitSlug: string): Promise<ComposioToolSummary[]>;
+  /**
+   * Raw tool descriptors (OpenAI function shape) for every ACTIVE toolkit,
+   * for building agent tools. Returns [] when nothing is connected.
+   */
+  rawToolsForConnected(): Promise<unknown[]>;
   /** Execute one Composio tool. */
   execute(slug: string, args: Record<string, unknown>): Promise<unknown>;
 }
@@ -73,13 +95,77 @@ export async function createComposioClient(
   const { Composio } = await dynamicImport('@composio/core');
   const sdk = new Composio({ apiKey });
 
+  /**
+   * Read every ACTIVE connected account, resolving each account's real Composio
+   * user id (entity) — the piece `tools.execute` requires. The camelCase SDK
+   * view strips `user_id`, so we read it from the underlying raw client where
+   * available and fall back to the SDK view (userId empty) otherwise.
+   *
+   * No userId filter on the list: connections made on Composio's dashboard are
+   * filed under a Composio-assigned user id, and the API key already scopes to
+   * the org — filtering by our local `default` would hide them all.
+   */
+  const readConnections = async (): Promise<ComposioConnection[]> => {
+    const rawList = sdk.client?.connectedAccounts?.list;
+    const response = (await (rawList
+      ? sdk.client!.connectedAccounts.list({ statuses: ['ACTIVE'] })
+      : sdk.connectedAccounts.list({ statuses: ['ACTIVE'] }))) as {
+      items?: unknown[];
+    };
+    const items = Array.isArray(response.items) ? response.items : [];
+    return items.map((raw) => {
+      const item = raw as {
+        id?: string;
+        status?: string;
+        toolkit?: { slug?: string };
+        // snake_case from the raw client; camelCase from the SDK view.
+        user_id?: string;
+        userId?: string;
+      };
+      return {
+        id: String(item.id ?? ''),
+        toolkitSlug: String(item.toolkit?.slug ?? ''),
+        status: String(item.status ?? ''),
+        userId: String(item.user_id ?? item.userId ?? ''),
+      };
+    });
+  };
+
+  /**
+   * toolkit slug -> the user id that toolkit's connected account belongs to.
+   * Cached because every tool call needs it and it changes only when the user
+   * connects/disconnects an app (a full refresh rebuilds the client anyway).
+   */
+  let userIdByToolkit: Map<string, string> | null = null;
+  const toolkitUserIds = async (): Promise<Map<string, string>> => {
+    if (userIdByToolkit) return userIdByToolkit;
+    const map = new Map<string, string>();
+    for (const conn of await readConnections()) {
+      if (conn.toolkitSlug && !map.has(conn.toolkitSlug)) {
+        map.set(conn.toolkitSlug, conn.userId || COMPOSIO_USER_ID);
+      }
+    }
+    userIdByToolkit = map;
+    return map;
+  };
+
+  /** The user id to execute a tool under, from its slug's toolkit prefix. */
+  const userIdForSlug = async (slug: string): Promise<string> => {
+    const map = await toolkitUserIds();
+    // Tool slugs are `TOOLKIT_ACTION` (e.g. GMAIL_FETCH_EMAILS); the toolkit
+    // slug is the lower-cased first segment.
+    const toolkit = slug.split('_')[0]?.toLowerCase() ?? '';
+    if (map.has(toolkit)) return map.get(toolkit)!;
+    // Fall back to the only connected user id if there is exactly one, else the
+    // local default (Composio will tell us plainly if that is wrong).
+    const distinct = [...new Set(map.values())];
+    return distinct.length === 1 ? distinct[0] : COMPOSIO_USER_ID;
+  };
+
   return {
     async verify() {
       try {
-        await sdk.connectedAccounts.list({
-          userIds: [COMPOSIO_USER_ID],
-          limit: 1,
-        });
+        await sdk.connectedAccounts.list({ statuses: ['ACTIVE'], limit: 1 });
         return { ok: true };
       } catch (error) {
         return {
@@ -90,30 +176,13 @@ export async function createComposioClient(
     },
 
     async listConnections() {
-      // No userId filter: connections made in the user's own Composio account
-      // (e.g. from the dashboard) often have no userId, and the API key already
-      // scopes to their org — so filtering by our local 'default' id would hide
-      // their existing connections.
-      const response = (await sdk.connectedAccounts.list({
-        statuses: ['ACTIVE'],
-      })) as { items?: unknown[] };
-      const items = Array.isArray(response.items) ? response.items : [];
-      return items.map((raw) => {
-        const item = raw as {
-          id?: string;
-          status?: string;
-          toolkit?: { slug?: string };
-        };
-        return {
-          id: String(item.id ?? ''),
-          toolkitSlug: String(item.toolkit?.slug ?? ''),
-          status: String(item.status ?? ''),
-        };
-      });
+      return readConnections();
     },
 
     async toolsForToolkit(toolkitSlug) {
-      const raw = (await sdk.tools.get(COMPOSIO_USER_ID, {
+      const map = await toolkitUserIds();
+      const userId = map.get(toolkitSlug) ?? COMPOSIO_USER_ID;
+      const raw = (await sdk.tools.get(userId, {
         toolkits: [toolkitSlug],
       })) as unknown;
       // The default provider returns an array of tool descriptors. Normalise a
@@ -143,11 +212,45 @@ export async function createComposioClient(
       });
     },
 
+    async rawToolsForConnected() {
+      const map = await toolkitUserIds();
+      const slugs = [...map.keys()];
+      if (slugs.length === 0) return [];
+      // Fetch each toolkit's tools under the user id that owns its account, so
+      // the tools we expose are the ones we can actually execute. (Fetching all
+      // toolkits under one id would only work if they shared it.)
+      const byUser = new Map<string, string[]>();
+      for (const [toolkit, userId] of map) {
+        byUser.set(userId, [...(byUser.get(userId) ?? []), toolkit]);
+      }
+      const out: unknown[] = [];
+      for (const [userId, toolkits] of byUser) {
+        // eslint-disable-next-line no-await-in-loop
+        const raw = (await sdk.tools.get(userId, { toolkits })) as unknown;
+        out.push(...toDescriptorList(raw));
+      }
+      return out;
+    },
+
     async execute(slug, args) {
+      const userId = await userIdForSlug(slug);
       return sdk.tools.execute(slug, {
-        userId: COMPOSIO_USER_ID,
+        // Execute under the user id that owns the toolkit's connected account.
+        // Connections made on the dashboard belong to a Composio-assigned id,
+        // not our local default; using the wrong id yields 404 / "User ID is
+        // required with connected account".
+        userId,
         arguments: args,
-      });
+        // Composio refuses a manual `tools.execute` whose resolved toolkit
+        // version is "latest" ("Toolkit version not specified") unless we opt
+        // out of the version pin. We don't know which toolkit versions a
+        // bring-your-own-key user has, and the tools we exposed were themselves
+        // fetched at "latest", so we run against "latest" deliberately. The
+        // documented risk is only that a future toolkit release could change a
+        // tool's behaviour — acceptable for an interactive assistant, and far
+        // better than the tool erroring out entirely.
+        dangerouslySkipVersionCheck: true,
+      } as Record<string, unknown>);
     },
   };
 }

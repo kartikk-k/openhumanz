@@ -8,9 +8,17 @@
  *
  * The hard rule this interface exists to enforce: `check()` must resolve
  * **immediately**. It may return `{ pending }` and let a human take an hour,
- * but it may not hold the promise open waiting for one — an MCP response held
- * open past the client's timeout kills the run, and the run is the thing we are
- * trying to protect.
+ * but it may not hold the promise open waiting for one.
+ *
+ * That rule is right for a *run*: a run is fire-and-forget, and an MCP response
+ * held open past the CLI's tool timeout is indistinguishable from a denial. But
+ * an interactive *chat* turn wants the opposite — the user is sitting there, and
+ * the turn should stay alive and continue the instant they decide, rather than
+ * ending and stranding the pending card in a separate tab. For that path the
+ * gate exposes {@link ApprovalGate.waitForDecision}: after `check()` returns
+ * `{ pending }`, the caller may opt in to awaiting the human's decision. The
+ * caller (the MCP server) is responsible for keeping the response alive past the
+ * client timeout — it sends MCP progress heartbeats while it waits.
  */
 
 /** What the gate is told about the call it is deciding on. */
@@ -59,12 +67,35 @@ export type ApprovalCheckResult =
       denied: string;
     };
 
+/** The human's decision on a pending approval, once one has been made. */
+export interface ApprovalDecisionResult {
+  /** `true` when the user allowed the call (any scope), `false` on a denial. */
+  readonly approved: boolean;
+  /** Short reason to show the agent when `approved` is false. */
+  readonly reason?: string;
+}
+
 export interface ApprovalGate {
   check(
     toolName: string,
     args: unknown,
     ctx: ApprovalGateContext,
   ): Promise<ApprovalCheckResult>;
+
+  /**
+   * Await the human's decision on a pending approval.
+   *
+   * Optional: a gate that does not implement it forces the caller down the
+   * return-immediately path (correct for runs). When present, the caller may
+   * hold the tool call open until the user decides — used by interactive chat so
+   * the turn continues in place. Resolves when the approval is resolved (allow
+   * or deny), and rejects if `signal` aborts (connection dropped, run cancelled)
+   * or the approval expires/cancels without a human decision.
+   */
+  waitForDecision?(
+    approvalId: string,
+    signal?: AbortSignal,
+  ): Promise<ApprovalDecisionResult>;
 }
 
 /** True for the `{ pending }` variant. */
@@ -91,5 +122,10 @@ export function isDeniedResult(
 export const allowAllApprovalGate: ApprovalGate = {
   async check() {
     return 'allow';
+  },
+  // Nothing ever reaches `pending` under this gate, so this is unreachable in
+  // practice; it exists to satisfy the interface and to fail loudly if it isn't.
+  async waitForDecision() {
+    return { approved: true };
   },
 };

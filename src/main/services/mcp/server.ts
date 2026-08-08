@@ -179,6 +179,13 @@ interface Session {
   readonly server: Server;
 }
 
+/**
+ * How often to send a keep-alive progress notification while an interactive
+ * approval is pending. Comfortably under the MCP client's default request
+ * timeout (~60s), which resets on each progress notification.
+ */
+const APPROVAL_HEARTBEAT_MS = 20_000;
+
 export function createMcpSocketServer(
   options: McpSocketServerOptions,
 ): McpSocketServer {
@@ -220,6 +227,13 @@ export function createMcpSocketServer(
     rawArgs: unknown,
     signal: AbortSignal | undefined,
     sessionLogger: Logger,
+    /**
+     * Sends a keep-alive to the CLI while an interactive approval is pending.
+     * The MCP client resets its request timeout on progress, so heartbeating it
+     * every ~20s lets a human take minutes to decide without the call reading as
+     * a timeout (which is indistinguishable from a denial). Absent for runs.
+     */
+    heartbeat?: () => Promise<void>,
   ): Promise<ToolCallResult> {
     // Gate one: this step's scope, applied independently of whatever
     // --allowedTools the CLI was given.
@@ -286,16 +300,69 @@ export function createMcpSocketServer(
       }
 
       if (isPendingResult(decision)) {
+        const canWait =
+          scope.interactive && typeof approvals.waitForDecision === 'function';
         sessionLogger.info('tool call awaiting approval', {
           tool: name,
           stepId: scope.stepId,
           approvalId: decision.pending,
+          waiting: canWait,
         });
-        return pendingApprovalResult({
-          approvalId: decision.pending,
-          pollAfterMs: decision.pollAfterMs,
-          message: decision.message,
-        });
+
+        // Interactive (chat): hold the call open and continue in place once the
+        // user decides. A heartbeat keeps the CLI's request from timing out
+        // while a human takes their time.
+        if (canWait) {
+          let stopHeartbeat: (() => void) | undefined;
+          if (heartbeat) {
+            const timer = setInterval(() => {
+              void heartbeat().catch(() => {
+                /* client gone; the await below will settle via signal */
+              });
+            }, APPROVAL_HEARTBEAT_MS);
+            timer.unref?.();
+            stopHeartbeat = () => clearInterval(timer);
+          }
+          try {
+            const outcome = await approvals.waitForDecision!(
+              decision.pending,
+              signal,
+            );
+            if (!outcome.approved) {
+              sessionLogger.info('tool call denied (interactive)', {
+                tool: name,
+                stepId: scope.stepId,
+              });
+              return errorResult(
+                `The user denied "${name}": ${
+                  outcome.reason ?? 'declined'
+                }. Do not retry it.`,
+              );
+            }
+            // Approved — fall through to invoke the tool below.
+          } catch (cause) {
+            const message =
+              cause instanceof Error ? cause.message : String(cause);
+            sessionLogger.info('interactive approval wait ended', {
+              tool: name,
+              stepId: scope.stepId,
+              reason: message,
+            });
+            return errorResult(
+              `Approval for "${name}" did not complete (${message}); the call was not made.`,
+            );
+          } finally {
+            stopHeartbeat?.();
+          }
+        } else {
+          // Non-interactive (runs): return the handle immediately and let the
+          // orchestrator re-dispatch once resolved.
+          return pendingApprovalResult({
+            approvalId: decision.pending,
+            pollAfterMs: decision.pollAfterMs,
+            message: decision.message,
+          });
+        }
       }
       if (isDeniedResult(decision)) {
         sessionLogger.info('tool call denied', {
@@ -354,15 +421,36 @@ export function createMcpSocketServer(
         .map(describeTool),
     }));
 
-    mcp.setRequestHandler(CallToolRequestSchema, async (request, extra) =>
-      runToolCall(
+    mcp.setRequestHandler(CallToolRequestSchema, async (request, extra) => {
+      // A progress token lets us heartbeat the client while an interactive
+      // approval is pending. The SDK only routes progress when the client asked
+      // for it (a token on the request); when absent, we simply don't heartbeat
+      // and rely on the client's own timeout being generous.
+      const progressToken = request.params._meta?.progressToken;
+      const heartbeat =
+        scope.interactive &&
+        progressToken !== undefined &&
+        extra?.sendNotification
+          ? async () => {
+              await extra.sendNotification({
+                method: 'notifications/progress',
+                params: {
+                  progressToken,
+                  progress: 0,
+                  message: 'Waiting for your approval…',
+                },
+              });
+            }
+          : undefined;
+      return runToolCall(
         scope,
         request.params.name,
         request.params.arguments,
         extra?.signal,
         sessionLogger,
-      ),
-    );
+        heartbeat,
+      );
+    });
 
     return mcp;
   }

@@ -98,6 +98,39 @@ async function main() {
     }
     console.log(`\n  ${c.green(`${tools.length} tools ✓`)}`);
   }
+
+  // Prove `execute` actually runs — this is the path that failed with
+  // "Toolkit version not specified" before we passed dangerouslySkipVersionCheck.
+  // Set COMPOSIO_EXECUTE to a slug (default GMAIL_FETCH_EMAILS for gmail) to run
+  // a real, read-only call and confirm no version error comes back.
+  const execSlug =
+    process.env.COMPOSIO_EXECUTE?.trim() ||
+    (toolkit === 'gmail' ? 'GMAIL_FETCH_EMAILS' : '');
+  if (execSlug && isConnected) {
+    console.log(c.bold(`\n  Executing ${execSlug} (read-only smoke test)…`));
+    try {
+      const result = await client.execute(execSlug, { max_results: 1 });
+      const err = result && typeof result === 'object' ? result.error : undefined;
+      if (err) {
+        console.log(c.red(`  ✗ execute returned an error: ${JSON.stringify(err)}`));
+        process.exit(1);
+      }
+      const successful =
+        result && typeof result === 'object' && 'successful' in result
+          ? result.successful
+          : true;
+      console.log(
+        successful === false
+          ? c.red('  ✗ execute reported successful=false')
+          : c.green('  ✓ execute succeeded — no "Toolkit version not specified"'),
+      );
+      if (successful === false) process.exit(1);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.log(c.red(`  ✗ execute threw: ${message}`));
+      process.exit(1);
+    }
+  }
   console.log('');
 }
 

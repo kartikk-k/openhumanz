@@ -20,6 +20,13 @@ export interface StepRegistrationInput {
   runId: string;
   /** Exactly the tool names this step may see and call. */
   allowedTools: Iterable<string>;
+  /**
+   * A human is watching this step live (chat), so a pending approval should
+   * hold the tool call open and continue in place once they decide, rather than
+   * returning a "pending" handle and ending the turn. Defaults to false — runs
+   * are fire-and-forget and must never block an MCP response on a human.
+   */
+  interactive?: boolean;
 }
 
 export interface StepScope {
@@ -27,6 +34,8 @@ export interface StepScope {
   readonly runId: string;
   readonly allowedTools: ReadonlySet<string>;
   readonly registeredAt: number;
+  /** See {@link StepRegistrationInput.interactive}. */
+  readonly interactive: boolean;
 }
 
 /** What `registerStep` hands back. Revoking twice is a no-op. */
@@ -71,6 +80,7 @@ export function createStepScopeRegistry(): StepScopeRegistry {
         runId,
         allowedTools,
         registeredAt: Date.now(),
+        interactive: input.interactive === true,
       };
       scopes.set(stepId, scope);
       return scope;

@@ -86,12 +86,33 @@ export type ApprovalCheckResult =
  * to the agent immediately, or an outright refusal. Holding an MCP response open
  * waiting for a person reliably hits client timeouts.
  */
+/** The human's decision on a pending approval, once one has been made. */
+export interface ApprovalDecisionResult {
+  readonly approved: boolean;
+  readonly reason?: string;
+}
+
 export interface ApprovalGate {
   check(
     toolName: string,
     args: unknown,
     ctx?: ApprovalCheckContext,
   ): Promise<ApprovalCheckResult>;
+
+  /**
+   * Block until the human resolves the given pending approval.
+   *
+   * `check` still returns immediately; this is a separate, opt-in second step
+   * for interactive callers (chat) that want the tool call to stay open and
+   * continue in place once the user decides. Resolves with the decision, or
+   * rejects if `signal` aborts or the approval expires/cancels with no decision.
+   * Callers holding an MCP response open are responsible for beating the client
+   * timeout (progress heartbeats).
+   */
+  waitForDecision(
+    approvalId: string,
+    signal?: AbortSignal,
+  ): Promise<ApprovalDecisionResult>;
 }
 
 /** What the gate needs to know about a tool. */
