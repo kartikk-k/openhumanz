@@ -41,7 +41,7 @@ import {
   mono,
   textMuted,
 } from '../../components/ui';
-import { APPROVE_SCOPES, DENY_COPY } from './copy';
+import { APPROVE_SCOPES, DENY_COPY, withShortcut } from './copy';
 import { riskSignal } from './risk';
 import {
   MetaDivider,
@@ -54,6 +54,24 @@ import {
 /** Opaque ids are long and nobody reads past the prefix. Full value in `title`. */
 function shortId(id: string): string {
   return id.length > 14 ? `${id.slice(0, 12)}…` : id;
+}
+
+/**
+ * Visual weight for the three approve buttons.
+ *
+ * The scope the user configured as their default is the filled one — it is the
+ * press they meant to make. `always` is deliberately the lightest of the three:
+ * it must be obvious and one click away, because a gate you cannot escape is a
+ * gate people quit, but it should never be the button a tired hand falls onto.
+ * Its weight comes from the caption underneath and the confirmation behind it,
+ * not from colour.
+ */
+function scopeVariant(
+  scope: ApprovalScope,
+  preferred: ApprovalScope,
+): 'primary' | 'secondary' | 'outline' {
+  if (scope === preferred) return 'primary';
+  return scope === 'always' ? 'outline' : 'secondary';
 }
 
 /**
@@ -289,12 +307,15 @@ export function ApprovalCard({
             caption={item.legend}
             className="min-w-[8.5rem] flex-1"
           >
-            <Tooltip content={item.consequence} className="w-full">
+            <Tooltip
+              content={withShortcut(item.consequence, item.shortcut)}
+              className="w-full"
+            >
               <Button
                 fullWidth
                 size="sm"
                 icon={item.icon}
-                variant={item.scope === defaultScope ? 'primary' : 'secondary'}
+                variant={scopeVariant(item.scope, defaultScope)}
                 disabled={busy}
                 onClick={() => onApprove(approval, item.scope)}
               >
@@ -310,7 +331,10 @@ export function ApprovalCard({
         />
 
         <ActionColumn caption="nothing runs" className="min-w-[6rem]">
-          <Tooltip content={DENY_COPY.consequence} className="w-full">
+          <Tooltip
+            content={withShortcut(DENY_COPY.consequence, DENY_COPY.shortcut)}
+            className="w-full"
+          >
             <Button
               fullWidth
               size="sm"

@@ -336,7 +336,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
       return {
         tone: 'idle' as const,
         title: 'Enter a cron expression',
-        body: 'Five or six fields, e.g. `0 9 * * 1-5`. It is described back to you in English before you can save it.',
+        body: 'Five or six fields, e.g. 0 9 * * 1-5. It is described back to you in English before you can save it.',
       };
     }
     if (stale || validation.loading) {

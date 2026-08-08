@@ -43,8 +43,7 @@ export const APPROVE_SCOPES: readonly ApproveScopeCopy[] = [
   {
     scope: 'once',
     label: APPROVAL_SCOPE_LABEL.once,
-    consequence:
-      'Runs this one call. The next call like it asks you again.',
+    consequence: 'Runs this one call. The next call like it asks you again.',
     legend: 'this call only',
     shortcut: 'a',
     icon: Check,
@@ -81,6 +80,11 @@ export const DENY_COPY = {
     'asked again, and you can attach a note saying why.',
   shortcut: 'd',
 };
+
+/** `…take it back at any time. (L)` — the tooltip form of a consequence. */
+export function withShortcut(consequence: string, shortcut: string): string {
+  return `${consequence} (${shortcut.toUpperCase()})`;
+}
 
 export function approveScopeCopy(scope: ApprovalScope): ApproveScopeCopy {
   return (
