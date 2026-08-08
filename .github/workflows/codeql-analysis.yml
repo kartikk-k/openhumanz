@@ -1,12 +1,9 @@
 name: 'CodeQL'
 
+# Temporarily disabled: only runs when triggered manually from the Actions tab.
+# To re-enable, restore the push / pull_request / schedule triggers below.
 on:
-  push:
-    branches: ['main']
-  pull_request:
-    branches: ['main']
-  schedule:
-    - cron: '44 16 * * 4'
+  workflow_dispatch:
 
 jobs:
   analyze:

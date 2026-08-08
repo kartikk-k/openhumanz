@@ -3,10 +3,10 @@ name: Publish
 # Publishes installers to a GitHub release using the electron-builder
 # `build.publish` config in package.json. Runs on version tags (e.g. v1.0.0)
 # or when triggered manually, so forks never publish by accident.
+# Temporarily disabled: the automatic tag-push trigger is off, so this only
+# runs when triggered manually from the Actions tab. To re-enable auto-publish
+# on version tags, restore the `push: tags: ['v*']` trigger below.
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
 
 jobs:

@@ -16,6 +16,12 @@
  * Run with:  bun run generate:icons
  *
  * Re-run any time assets/icon-source.png changes.
+ *
+ * If the source already has the macOS squircle + shadow baked in (e.g. a
+ * standard AppIcon.appiconset export), set PREROUNDED so we DON'T round it a
+ * second time — just repackage it into the required formats:
+ *
+ *   PREROUNDED=1 bun run generate:icons
  */
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -40,6 +46,10 @@ const CONTENT_SCALE = 0.82;
 // squarer, lower = rounder. 5 matches the macOS Big Sur+ app-icon silhouette.
 const SQUIRCLE_N = 5;
 
+// When the source already carries the rounded mask + shadow, skip masking and
+// insetting entirely and just resize it into the required formats.
+const PREROUNDED = process.env.PREROUNDED === '1';
+
 /**
  * SVG path for a centred superellipse |x|^n + |y|^n = 1, sampled as a polygon.
  * Used as an alpha mask so the corners round off smoothly.
@@ -62,8 +72,20 @@ function squircleMaskSvg(size) {
   );
 }
 
-/** Render the masked, inset master icon at MASTER x MASTER. */
+/** Render the master icon at MASTER x MASTER. */
 async function renderMaster() {
+  // Source already rounded (e.g. an AppIcon export): keep it as-is, only
+  // normalise to the master size on a transparent canvas.
+  if (PREROUNDED) {
+    return sharp(SOURCE)
+      .resize(MASTER, MASTER, {
+        fit: 'contain',
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      })
+      .png()
+      .toBuffer();
+  }
+
   const contentSize = Math.round(MASTER * CONTENT_SCALE);
   const pad = Math.round((MASTER - contentSize) / 2);
 
@@ -93,7 +115,11 @@ async function renderMaster() {
 }
 
 async function main() {
-  console.log('› rendering master icon (squircle mask + safe-area inset)…');
+  console.log(
+    PREROUNDED
+      ? '› rendering master icon (pre-rounded source, no mask applied)…'
+      : '› rendering master icon (squircle mask + safe-area inset)…',
+  );
   const master = await renderMaster();
 
   // 1) assets/icon.png (1024) — BrowserWindow + electron-builder source.

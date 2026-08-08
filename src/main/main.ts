@@ -31,7 +31,14 @@ const isDebug =
   process.env.NODE_ENV === 'development' || process.env.DEBUG_PROD === 'true';
 
 if (isDebug) {
-  require('electron-debug')();
+  // electron-debug 4.x ships as an ES module, so its callable lives on
+  // `.default` once webpack interops it. Calling the namespace object itself
+  // throws "__webpack_require__(...) is not a function".
+  //
+  // `showDevTools: false` stops DevTools from auto-opening on every launch;
+  // the F12 / Cmd+Opt+I shortcuts still work to open it on demand.
+  const electronDebug = require('electron-debug');
+  (electronDebug.default ?? electronDebug)({ showDevTools: false });
 }
 
 /**

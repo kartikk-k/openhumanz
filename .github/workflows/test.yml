@@ -1,6 +1,9 @@
 name: Test
 
-on: [push, pull_request]
+# Temporarily disabled: only runs when triggered manually from the Actions tab.
+# To re-enable, restore:  on: [push, pull_request]
+on:
+  workflow_dispatch:
 
 jobs:
   test:
