@@ -35,11 +35,12 @@ Every number below was produced by a real run, not asserted.
 | Tasks / goals | 51 + 47 — hand-mangled `GOALS.md` parses without data loss |
 | Settings | 67/67 — a corrupt `settings.json` degrades per-field instead of wiping config |
 | Patch schemas | 50/50 — parsing a patch never invents a key the caller didn't send |
+| Dev start chain | `bun run start` runs end to end with no Node/npm: port check → main bundle → dev server "Project is running" → preload builder → main process → Electron. Zero compile errors; it stops only at Electron needing a GUI |
 | Typecheck / lint / build | all clean, whole repo |
 
 ## Not verified — read this first
 
-1. **The app has never been launched.** This machine has no `node`, no X11/audio libraries and no root, so Electron cannot start here. The backend was booted headlessly with `electron` stubbed; the window, the preload bridge in a real renderer, and every IPC round-trip through actual Electron are untested. **This is the first thing to do in the morning: `bun install && bun run start`.**
+1. **The app window has never opened.** Electron dies here on `libasound.so.2` — this container has no audio/X11 libraries and no root to install them. Everything up to that point is verified: the dev chain builds and spawns correctly, and the backend was booted headlessly with `electron` stubbed. What remains untested is the window itself, the preload bridge inside a real renderer, and IPC round-trips through actual Electron. **First thing to run: `bun run start`.**
 2. **No billed CLI call was ever made.** Everything about the engine is proven against a fake CLI that replays recorded `stream-json`. Real detection (`claude --version` → 2.1.224) works; a real `claude -p` run does not exist yet. **The subscription-vs-API billing question the plan flags as premise-critical is still open** — test it on a real account early.
 3. **The macOS layer has never executed.** Written, typechecked, and correctly reporting unavailable on Linux, but no AppleScript has ever run. Its escaping corpus and error mapping are unit-tested; everything touching a real Apple Event is not.
 4. **Jest cannot run here** (no `node`; Bun's runtime can't execute it). `src/__tests__/App.test.tsx` is valid but unexecuted. The suites above are standalone Bun scripts in the session scratchpad, not committed — port the valuable ones into the repo.

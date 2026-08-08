@@ -36,10 +36,12 @@ if (
 ) {
   console.log(
     chalk.black.bgYellow.bold(
-      'The DLL files are missing. Sit back while we build them for you with "npm run build-dll"',
+      'The DLL files are missing. Sit back while we build them for you with "bun run build:dll"',
     ),
   );
-  execSync('npm run postinstall');
+  execSync(
+    `${process.env.npm_execpath && /bun/.test(process.env.npm_execpath) ? 'bun' : 'npm'} run postinstall`,
+  );
 }
 
 const configuration: webpack.Configuration = {
@@ -186,8 +188,18 @@ const configuration: webpack.Configuration = {
       verbose: true,
     },
     setupMiddlewares(middlewares) {
+      /**
+       * Spawn with whatever package manager launched us. Hardcoding `npm`
+       * assumes Node is installed, which it need not be — bun is this
+       * project's package manager and can run these scripts on its own.
+       */
+      const pm =
+        process.env.npm_execpath && /bun/.test(process.env.npm_execpath)
+          ? 'bun'
+          : 'npm';
+
       console.log('Starting preload.js builder...');
-      const preloadProcess = spawn('npm', ['run', 'start:preload'], {
+      const preloadProcess = spawn(pm, ['run', 'start:preload'], {
         shell: true,
         stdio: 'inherit',
       })
@@ -201,7 +213,7 @@ const configuration: webpack.Configuration = {
           ['--', ...process.env.MAIN_ARGS.matchAll(/"[^"]+"|[^\s"]+/g)].flat(),
         );
       }
-      spawn('npm', args, {
+      spawn(pm, args, {
         shell: true,
         stdio: 'inherit',
       })
