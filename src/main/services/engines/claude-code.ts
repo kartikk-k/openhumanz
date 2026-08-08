@@ -744,6 +744,11 @@ export class ClaudeCodeAdapter implements EngineAdapter {
     const detectedAt = nowIso();
 
     if (!binaryPath) {
+      const notInstalledAuth = buildAuthStatus({
+        apiKeyEnv,
+        stripping: true,
+        probeError: 'CLI not installed',
+      });
       const detection: EngineDetection = {
         info: {
           id: this.id,
@@ -753,13 +758,10 @@ export class ClaudeCodeAdapter implements EngineAdapter {
             'The Claude Code CLI was not found on PATH. Install it, then reopen this screen. If it is installed, make sure its directory is on the PATH the app inherits.',
           supportsResume: false,
           supportsStreamingJson: false,
+          auth: notInstalledAuth,
           detectedAt,
         },
-        auth: buildAuthStatus({
-          apiKeyEnv,
-          stripping: true,
-          probeError: 'CLI not installed',
-        }),
+        auth: notInstalledAuth,
         capabilities: {
           streamingJson: false,
           resume: false,
@@ -844,6 +846,13 @@ export class ClaudeCodeAdapter implements EngineAdapter {
       authProbeError = 'unrecognised output from `claude auth status --json`';
     }
 
+    const authStatus = buildAuthStatus({
+      raw: rawAuth,
+      probeError: authProbeError,
+      apiKeyEnv,
+      stripping: true,
+    });
+
     const detection: EngineDetection = {
       info: {
         id: this.id,
@@ -854,14 +863,12 @@ export class ClaudeCodeAdapter implements EngineAdapter {
         reason,
         supportsResume: capabilities.resume,
         supportsStreamingJson: capabilities.streamingJson,
+        // `EngineInfo` carries auth now, so the UI gets it from the engine it
+        // belongs to rather than from a parallel map keyed by engine id.
+        auth: authStatus,
         detectedAt,
       },
-      auth: buildAuthStatus({
-        raw: rawAuth,
-        probeError: authProbeError,
-        apiKeyEnv,
-        stripping: true,
-      }),
+      auth: authStatus,
       capabilities,
       rawVersion: versionText || undefined,
     };

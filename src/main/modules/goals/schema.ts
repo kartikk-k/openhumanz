@@ -6,9 +6,7 @@
  * into every turn — a hard item cap and a token budget — and the id scheme that
  * survives a human editing the file underneath us.
  */
-import { z } from 'zod';
-import { JsonObjectSchema } from '../../../shared/common';
-import { GoalHorizonSchema, GoalStatusSchema } from '../../../shared/tasks';
+import { GoalWriteSchema } from '../../../shared/tasks';
 import type { GoalWrite } from '../../../shared/tasks';
 
 /** The file, relative to the workspace root. Deliberately shouty and findable. */
@@ -52,32 +50,16 @@ export class GoalBudgetError extends Error {
 }
 
 /**
- * What a caller may write — a patch, with **no defaults**.
+ * What a caller may write — a patch, with no defaults.
  *
- * This exists because `GoalWriteSchema` in shared/ is built with `.partial()`
- * over a schema whose fields carry `.default(...)`, and zod applies the default
- * anyway: `GoalWriteSchema.parse({ title: 'x' })` comes back with
- * `description: ''`, `status: 'active'` and `order: 0`. Parsing a patch with it
- * therefore turns "leave the description alone" into "blank the description",
- * and "leave it where it is" into "move it to the top".
+ * This used to be a hand-rolled copy of `GoalWriteSchema`, because that schema
+ * was built with `.partial()` over fields carrying `.default(...)` and zod v4
+ * applies the default anyway: `parse({ title: 'x' })` came back with
+ * `description: ''`, `status: 'active'` and `order: 0`, so parsing a patch
+ * turned "leave the description alone" into "blank the description".
  *
- * Same field names, same output type, no defaults. The assignment below is the
- * compile-time proof that the two stay interchangeable.
+ * Shared builds it with `patchSchema()` now, which strips the defaults, so the
+ * copy is gone and this is a straight alias.
  */
-export const GoalPatchSchema = z.object({
-  id: z.string().min(1).optional(),
-  title: z.string().min(1),
-  description: z.string().optional(),
-  horizon: GoalHorizonSchema.optional(),
-  status: GoalStatusSchema.optional(),
-  metric: z.string().optional(),
-  targetDate: z.string().min(1).optional(),
-  order: z.number().int().optional(),
-  metadata: JsonObjectSchema.optional(),
-});
-export type GoalPatch = z.infer<typeof GoalPatchSchema>;
-
-/** A patch is a `GoalWrite`. If this stops compiling, shared/ changed shape. */
-export const GOAL_PATCH_IS_GOAL_WRITE: (patch: GoalPatch) => GoalWrite = (
-  patch,
-) => patch;
+export const GoalPatchSchema = GoalWriteSchema;
+export type GoalPatch = GoalWrite;

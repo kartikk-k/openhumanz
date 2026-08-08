@@ -16,7 +16,7 @@
  *     whose title did not match a word list, which is why the absence renders
  *     as nothing at all rather than as reassurance.
  */
-import type { Tone } from '../lib/tone';
+import type { Tone } from '../../lib/tone';
 import type { Approval } from '../../../shared/approvals';
 
 export interface RiskSignal {

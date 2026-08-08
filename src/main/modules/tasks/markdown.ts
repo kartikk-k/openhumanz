@@ -70,7 +70,7 @@ export function renderBoardLine(card: TaskCard): string {
     bits.length > 0 ? ` · ${bits.join(' · ')}` : ''
   }`;
 
-  if (card.cardStatus === 'blocked' && card.blockerReason) {
+  if (card.status === 'blocked' && card.blockerReason) {
     return `${head}\n  Blocked: ${clip(card.blockerReason)}`;
   }
   const detail = card.objective || card.description;
@@ -102,9 +102,9 @@ export function renderBoard(
 
   const grouped = new Map<CardStatus, TaskCard[]>();
   for (const card of cards) {
-    const bucket = grouped.get(card.cardStatus);
+    const bucket = grouped.get(card.status);
     if (bucket) bucket.push(card);
-    else grouped.set(card.cardStatus, [card]);
+    else grouped.set(card.status, [card]);
   }
 
   const lines: string[] = [`# Task board — ${title}`, ''];
@@ -131,7 +131,7 @@ function section(heading: string, body: string): string[] {
 /** The full card. This is what `tasks:get` and `tasks_get` return. */
 export function renderCard(card: TaskCard): string {
   const meta: string[] = [
-    CARD_STATUS_LABELS[card.cardStatus].toLowerCase(),
+    CARD_STATUS_LABELS[card.status].toLowerCase(),
     `${card.priority} priority`,
     `${boardTitle(card.board, card.conversationId)} board`,
   ];
@@ -150,7 +150,7 @@ export function renderCard(card: TaskCard): string {
   lines.push(...section('Desired outcome', card.desiredOutcome));
   lines.push(...section('Description', card.description));
 
-  if (card.cardStatus === 'blocked' || card.blockerReason) {
+  if (card.status === 'blocked' || card.blockerReason) {
     lines.push(
       ...section('Blocked', card.blockerReason || 'No reason recorded.'),
     );

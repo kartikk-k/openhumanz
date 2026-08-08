@@ -25,7 +25,10 @@ import type {
   LogLevel,
   Usage,
 } from '../../../shared/common';
-import type { EngineInfo } from '../../../shared/engines';
+import type {
+  EngineAuthStatus,
+  EngineInfo,
+} from '../../../shared/engines';
 import type { Logger } from '../../infra/logger';
 
 /* ------------------------------------------------------------------ */
@@ -389,36 +392,14 @@ export interface EngineRunSummary {
 /* ------------------------------------------------------------------ */
 
 /**
- * Auth as a first-class, renderable status rather than a line in a log.
- *
- * `apiKeyEnv` is the one that matters: `ANTHROPIC_API_KEY` takes precedence
- * over a subscription login, so a user with a stray key in their shell profile
- * burns pay-as-you-go credit while believing they are on their plan. It is
- * surfaced as its own severity, not folded into a warning list.
+ * Both of these now live in `shared/engines.ts` — auth is rendered by the
+ * onboarding and settings screens, so it is wire contract, not an adapter
+ * detail. Re-exported here so the adapters keep one import site.
  */
-export type EngineAuthState =
-  'subscription' | 'api-key' | 'logged-out' | 'unknown';
-
-export interface EngineAuthStatus {
-  state: EngineAuthState;
-  /** `ok` renders green, `warning` amber, `error` red and blocking. */
-  severity: 'ok' | 'warning' | 'error';
-  /** One sentence, addressed to a human, saying what to do about it. */
-  message: string;
-  /** True when a key is present in the environment we would spawn with. */
-  apiKeyEnvDetected: boolean;
-  /** Which variables, by name. Values are never read, stored, or logged. */
-  apiKeyEnvVars: string[];
-  /** True when the adapter will strip those variables before spawning. */
-  apiKeyEnvStripped: boolean;
-  /** As reported by the CLI, when it can say. */
-  method?: string;
-  email?: string;
-  organization?: string;
-  subscription?: string;
-  /** Set when the auth probe itself failed. */
-  probeError?: string;
-}
+export type {
+  EngineAuthState,
+  EngineAuthStatus,
+} from '../../../shared/engines';
 
 /** Optional flags a build may or may not accept. Probed, never assumed. */
 export interface EngineCapabilities {

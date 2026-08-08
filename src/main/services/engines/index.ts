@@ -84,7 +84,13 @@ export interface EngineEnvironmentReport {
   detections: EngineDetection[];
   /** The `shared/engines.ts` shape, minus `providers`, which is another module. */
   status: Omit<EnvironmentStatus, 'providers'>;
-  /** Auth per engine id, since `EngineInfo` has nowhere to carry it. */
+  /**
+   * Auth per engine id.
+   *
+   * `EngineInfo.auth` is the contract now and carries the same object; this
+   * map is kept as a lookup convenience for callers that have an id and no
+   * `EngineInfo` to hand. It is derived, never a second source of truth.
+   */
   auth: Record<string, EngineAuthStatus>;
 }
 
@@ -159,6 +165,14 @@ export function createEngineRegistry(
               engine: adapter.id,
               error: (error as Error).message,
             });
+            const failedAuth: EngineAuthStatus = {
+              state: 'unknown',
+              severity: 'warning',
+              message: `Could not check ${adapter.name}: ${(error as Error).message}`,
+              apiKeyEnvDetected: false,
+              apiKeyEnvVars: [],
+              apiKeyEnvStripped: false,
+            };
             const failed: EngineDetection = {
               info: {
                 id: adapter.id,
@@ -167,16 +181,10 @@ export function createEngineRegistry(
                 reason: `Detection failed: ${(error as Error).message}`,
                 supportsResume: false,
                 supportsStreamingJson: false,
+                auth: failedAuth,
                 detectedAt: nowIso(),
               },
-              auth: {
-                state: 'unknown',
-                severity: 'warning',
-                message: `Could not check ${adapter.name}: ${(error as Error).message}`,
-                apiKeyEnvDetected: false,
-                apiKeyEnvVars: [],
-                apiKeyEnvStripped: false,
-              },
+              auth: failedAuth,
               capabilities: {
                 streamingJson: false,
                 resume: false,

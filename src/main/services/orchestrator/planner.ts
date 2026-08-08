@@ -8,10 +8,12 @@
  * scope and an explicit budget.** A step with no ceiling is a step that can
  * spend a weekly quota on a loop, so there is no code path that produces one.
  *
- * Two sources of steps today:
- *  - an explicit plan handed in through `metadata.plan` (the scheduler and the
- *    UI both want this), validated with zod like anything else crossing a
- *    boundary;
+ * Sources of steps, in precedence order:
+ *  - `request.plan` — an explicit decomposition, with an optional title;
+ *  - `request.steps` — the same thing without the title;
+ *  - `metadata.plan` — where the decomposition used to travel, before
+ *    `RunStartRequest` had a field for it. Still read so a caller written
+ *    against the old shape keeps working;
  *  - otherwise, one step containing the whole prompt.
  *
  * One step is the honest default. Guessing at a decomposition without a model
@@ -19,28 +21,18 @@
  * boundary is worse than none — it splits the budget without splitting the
  * blast radius.
  */
-import { z } from 'zod';
+import { RunPlanInputSchema } from '../../../shared/runs';
 import type { PlanContext, PlannedStep, Planner, RunPlan } from './types';
 
-/** `metadata.plan` — an explicit decomposition supplied by the caller. */
-export const PlanInputSchema = z.object({
-  title: z.string().min(1).optional(),
-  steps: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        prompt: z.string().min(1),
-        allowedTools: z.array(z.string()).optional(),
-        maxTurns: z.number().int().positive().optional(),
-        maxCostUsd: z.number().positive().optional(),
-        cwd: z.string().optional(),
-        continueSession: z.boolean().optional(),
-        model: z.string().optional(),
-      }),
-    )
-    .min(1),
-});
-export type PlanInput = z.infer<typeof PlanInputSchema>;
+/**
+ * An explicit decomposition supplied by the caller.
+ *
+ * This shape lives in `shared/runs.ts` now — it is what `RunStartRequest.plan`
+ * carries — and is re-exported here under its original name for callers that
+ * already import it from the planner.
+ */
+export { RunPlanInputSchema as PlanInputSchema } from '../../../shared/runs';
+export type { RunPlanInput as PlanInput } from '../../../shared/runs';
 
 /** Ceilings applied when neither the request nor the plan names one. */
 export const DEFAULT_MAX_TURNS = 20;
@@ -80,7 +72,13 @@ export function normalizeStep(
 export function createDefaultPlanner(): Planner {
   return {
     plan(request, ctx): RunPlan {
-      const explicit = PlanInputSchema.safeParse(request.metadata?.plan);
+      // Real fields first; `metadata.plan` is the legacy channel and is only
+      // consulted when neither is present.
+      const source =
+        request.plan ??
+        (request.steps ? { steps: request.steps } : undefined) ??
+        request.metadata?.plan;
+      const explicit = RunPlanInputSchema.safeParse(source);
       if (explicit.success) {
         return {
           title: explicit.data.title ?? request.title,

@@ -15,6 +15,49 @@ export const KNOWN_ENGINE_IDS = ['claude-code'] as const;
 export const EngineIdSchema = z.string().min(1);
 export type EngineId = z.infer<typeof EngineIdSchema>;
 
+/**
+ * Auth as a first-class, renderable status rather than a line in a log.
+ *
+ * `apiKeyEnvDetected` is the one that matters: `ANTHROPIC_API_KEY` takes
+ * precedence over a subscription login, so a user with a stray key in their
+ * shell profile burns pay-as-you-go credit while believing they are on their
+ * plan. It is surfaced as its own severity, not folded into a warning list.
+ */
+export const ENGINE_AUTH_STATES = [
+  'subscription',
+  'api-key',
+  'logged-out',
+  'unknown',
+] as const;
+export const EngineAuthStateSchema = z.enum(ENGINE_AUTH_STATES);
+export type EngineAuthState = z.infer<typeof EngineAuthStateSchema>;
+
+export const ENGINE_AUTH_SEVERITIES = ['ok', 'warning', 'error'] as const;
+export const EngineAuthSeveritySchema = z.enum(ENGINE_AUTH_SEVERITIES);
+export type EngineAuthSeverity = z.infer<typeof EngineAuthSeveritySchema>;
+
+export const EngineAuthStatusSchema = z.object({
+  state: EngineAuthStateSchema,
+  /** `ok` renders green, `warning` amber, `error` red and blocking. */
+  severity: EngineAuthSeveritySchema,
+  /** One sentence, addressed to a human, saying what to do about it. */
+  message: z.string().default(''),
+  /** True when a key is present in the environment we would spawn with. */
+  apiKeyEnvDetected: z.boolean().default(false),
+  /** Which variables, by name. Values are never read, stored, or logged. */
+  apiKeyEnvVars: z.array(z.string()).default([]),
+  /** True when the adapter will strip those variables before spawning. */
+  apiKeyEnvStripped: z.boolean().default(false),
+  /** As reported by the CLI, when it can say. */
+  method: z.string().optional(),
+  email: z.string().optional(),
+  organization: z.string().optional(),
+  subscription: z.string().optional(),
+  /** Set when the auth probe itself failed. */
+  probeError: z.string().optional(),
+});
+export type EngineAuthStatus = z.infer<typeof EngineAuthStatusSchema>;
+
 export const EngineInfoSchema = z.object({
   id: EngineIdSchema,
   /** Display name, e.g. "Claude Code". */
@@ -27,6 +70,12 @@ export const EngineInfoSchema = z.object({
   reason: z.string().optional(),
   supportsResume: z.boolean().default(false),
   supportsStreamingJson: z.boolean().default(false),
+  /**
+   * Optional so an adapter that cannot probe auth simply omits it. Detection
+   * used to return this as a sidecar `Record<engineId, EngineAuthStatus>`
+   * because there was nowhere on the engine to put it.
+   */
+  auth: EngineAuthStatusSchema.optional(),
   detectedAt: IsoDateTimeSchema,
 });
 export type EngineInfo = z.infer<typeof EngineInfoSchema>;

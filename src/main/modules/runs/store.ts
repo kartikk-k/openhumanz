@@ -31,6 +31,7 @@ import { nowIso } from '../../../shared/common';
 import type { Approval } from '../../../shared/approvals';
 import { ApprovalSchema } from '../../../shared/approvals';
 import type {
+  FailureKind,
   Run,
   RunDetail,
   RunEvent,
@@ -62,29 +63,15 @@ export type RunEventDraft = DistributiveOmit<RunEvent, 'runId' | 'seq' | 'at'>;
 /**
  * Why a run or step ended badly.
  *
- * `quota` and `rate_limit` are separated from everything else on purpose: they
- * are the most likely real-world failure and the only ones where the right UI
- * copy is "your plan is out", not "something went wrong".
+ * `Run.failureKind` / `RunStep.failureKind` are real fields now, so the
+ * vocabulary lives in `shared/runs.ts` and is re-exported here for the callers
+ * that already import it from the store.
  */
-export const FAILURE_KINDS = [
-  'quota',
-  'rate_limit',
-  'auth',
-  'timeout',
-  'budget_exceeded',
-  'max_turns',
-  'engine_error',
-  'spawn_failed',
-  'cancelled',
-  'interrupted',
-  'internal',
-] as const;
-export type FailureKind = (typeof FAILURE_KINDS)[number];
-
-/** True when a failure means "the account is out of capacity", not "a bug". */
-export function isQuotaFailure(kind: string | undefined): boolean {
-  return kind === 'quota' || kind === 'rate_limit';
-}
+export {
+  FAILURE_KINDS,
+  isQuotaFailure,
+  type FailureKind,
+} from '../../../shared/runs';
 
 export interface CreateRunInput {
   id?: string;
@@ -189,15 +176,12 @@ export interface RunStore {
   listRuns(query: RunListQuery): Page<Run>;
   /** Run + steps + tool calls + pending approvals, in one payload. */
   getRunDetail(id: string): RunDetail | null;
-  /** `failure_kind` for a run, which {@link Run} has no field for yet. */
-  runFailureKind(id: string): FailureKind | undefined;
 
   /* steps */
   createStep(input: CreateStepInput): RunStep;
   getStep(id: string): RunStep | undefined;
   updateStep(id: string, patch: StepPatch): RunStep;
   listSteps(runId: string): RunStep[];
-  stepFailureKind(id: string): FailureKind | undefined;
 
   /* tool calls */
   createToolCall(input: CreateToolCallInput): ToolCall;
@@ -323,6 +307,7 @@ const STEP_COLUMNS: Record<string, string> = {
   summary: 'summary',
   error: 'error',
   failureKind: 'failure_kind',
+  metadataJson: 'metadata_json',
 };
 
 const TOOL_CALL_COLUMNS: Record<string, string> = {
@@ -358,6 +343,7 @@ function toRun(row: Row): Run {
     durationMs: int(row.duration_ms),
     usage: parseUsage(row.usage_json),
     error: text(row.error),
+    failureKind: text(row.failure_kind) as FailureKind | undefined,
     metadata: parseJson<JsonObject>(row.metadata_json, {}),
   };
 }
@@ -381,6 +367,8 @@ function toStep(row: Row): RunStep {
     usage: parseUsage(row.usage_json),
     summary: text(row.summary),
     error: text(row.error),
+    failureKind: text(row.failure_kind) as FailureKind | undefined,
+    metadata: parseJson<JsonObject>(row.metadata_json, {}),
   };
 }
 
@@ -578,13 +566,6 @@ export function createRunStore(options: RunStoreOptions): RunStore {
       };
     },
 
-    runFailureKind(id) {
-      const row = db.get('SELECT failure_kind FROM runs_run WHERE id = ?', [
-        id,
-      ]);
-      return text(row?.failure_kind) as FailureKind | undefined;
-    },
-
     /* ---------------- steps ---------------- */
 
     createStep(input) {
@@ -651,13 +632,6 @@ export function createRunStore(options: RunStoreOptions): RunStore {
           runId,
         ])
         .map(toStep);
-    },
-
-    stepFailureKind(id) {
-      const row = db.get('SELECT failure_kind FROM runs_step WHERE id = ?', [
-        id,
-      ]);
-      return text(row?.failure_kind) as FailureKind | undefined;
     },
 
     /* ---------------- tool calls ---------------- */

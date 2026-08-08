@@ -13,8 +13,8 @@
  *  - flatten tool calls into prose. A tool call keeps its arguments and its
  *    result as data so the UI can show a summary and expand to raw JSON.
  */
-import type { Approval, ApprovalDecision, ApprovalScope } from '../../shared/approvals';
-import type { LogLevel, Usage } from '../../shared/common';
+import type { Approval, ApprovalDecision, ApprovalScope } from '../../../shared/approvals';
+import type { LogLevel, Usage } from '../../../shared/common';
 import type {
   Run,
   RunDetail,
@@ -23,7 +23,7 @@ import type {
   RunStep,
   RunStepStatus,
   ToolCall,
-} from '../../shared/runs';
+} from '../../../shared/runs';
 import { readFailureKind, type FailureKind } from './failures';
 
 /** Key of the bucket that holds events the engine never attributed to a step. */

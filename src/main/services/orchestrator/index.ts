@@ -842,13 +842,6 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
       sessionId: sessionId ?? null,
       error: error ?? null,
       failureKind: failureKind ?? null,
-      metadata: {
-        // `Run` has no failureKind field yet, and the timeline has to be able
-        // to say "out of quota" rather than "failed". Mirrored here until it
-        // does — see the report.
-        failureKind: failureKind ?? null,
-        quotaFailure: isQuotaKind(failureKind as EngineFailureKind | undefined),
-      },
     });
 
     await store.append(created.id, { type: 'run.status', status });
@@ -857,6 +850,9 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
       status,
       usage: finalUsage,
       error: error ?? undefined,
+      // `Run.failureKind` is a real field now; the event carries it too so a
+      // live timeline can say "out of quota" without re-fetching the run.
+      failureKind,
     });
     await store.flush(created.id);
 
@@ -985,6 +981,8 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
       const previous = store.getRun(runId);
       if (!previous) throw new Error(`Unknown run: ${runId}`);
       const metadata: JsonObject = { ...previous.metadata, rerunOf: runId };
+      // Legacy rows still carry the old mirrors; a rerun must not inherit the
+      // previous attempt's failure. Nothing writes these any more.
       delete metadata.failureKind;
       delete metadata.quotaFailure;
       return startRun({

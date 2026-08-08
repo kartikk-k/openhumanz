@@ -282,7 +282,7 @@ export function createTaskTools(deps: TaskToolDeps): AnyToolDefinition[] {
       onChanged([card.id]);
       return {
         id: card.id,
-        status: card.cardStatus,
+        status: card.status,
         board: card.board,
         summary: `Created ${quote(card.title)} on the ${card.board} board.`,
       };
@@ -302,9 +302,9 @@ export function createTaskTools(deps: TaskToolDeps): AnyToolDefinition[] {
       onChanged([card.id]);
       return {
         id: card.id,
-        status: card.cardStatus,
+        status: card.status,
         summary: `${quote(card.title)} is now ${CARD_STATUS_LABELS[
-          card.cardStatus
+          card.status
         ].toLowerCase()}.`,
       };
     },

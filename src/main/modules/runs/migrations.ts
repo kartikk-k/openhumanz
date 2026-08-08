@@ -106,6 +106,15 @@ export const migrations: Migration[] = [
       'CREATE INDEX IF NOT EXISTS runs_approval_cache_run_idx ON runs_approval_cache (run_id, resolved);',
     ],
   },
+  {
+    id: '002_step_metadata',
+    description: 'per-step metadata blob',
+    up: [
+      /* `RunStep` carries a metadata blob now, same as `Run`. Existing rows
+         read as `{}` — the column default covers them without a backfill. */
+      `ALTER TABLE runs_step ADD COLUMN metadata_json TEXT NOT NULL DEFAULT '{}';`,
+    ],
+  },
 ];
 
 export default migrations;

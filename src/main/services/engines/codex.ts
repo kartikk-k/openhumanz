@@ -27,6 +27,7 @@ import type {
   BatchOptions,
   DetectOptions,
   EngineAdapter,
+  EngineAuthStatus,
   EngineDetection,
   EngineEvent,
   EngineRun,
@@ -126,6 +127,15 @@ export class CodexAdapter implements EngineAdapter {
       options.binaryPath ?? this.options.binaryPath ?? whichSync(CODEX_BINARY);
     const apiKeyEnv = findApiKeyEnv();
 
+    const auth: EngineAuthStatus = {
+      state: 'unknown',
+      severity: 'warning',
+      message: 'Codex is not supported yet, so its auth state is not checked.',
+      apiKeyEnvDetected: apiKeyEnv.detected,
+      apiKeyEnvVars: apiKeyEnv.vars,
+      apiKeyEnvStripped: false,
+    };
+
     // `available: false` even when the binary is present. Presence is not
     // support, and claiming otherwise would put a broken engine in a dropdown.
     return {
@@ -137,17 +147,10 @@ export class CodexAdapter implements EngineAdapter {
         reason: binaryPath ? UNSUPPORTED_REASON : NOT_INSTALLED_REASON,
         supportsResume: false,
         supportsStreamingJson: false,
+        auth,
         detectedAt: nowIso(),
       },
-      auth: {
-        state: 'unknown',
-        severity: 'warning',
-        message:
-          'Codex is not supported yet, so its auth state is not checked.',
-        apiKeyEnvDetected: apiKeyEnv.detected,
-        apiKeyEnvVars: apiKeyEnv.vars,
-        apiKeyEnvStripped: false,
-      },
+      auth,
       capabilities: {
         streamingJson: false,
         resume: false,

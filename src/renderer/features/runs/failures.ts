@@ -10,10 +10,9 @@
  * ## Reading the kind
  *
  * The main process classifies the failure and stores it in a `failure_kind`
- * column. At the time of writing `Run`/`RunStep` in `shared/runs.ts` carry it
- * only as `metadata.failureKind`, and it is being promoted to a real field.
- * {@link readFailureKind} reads both, so this screen is correct before and
- * after that lands and nothing here needs editing when it does.
+ * column. `Run`/`RunStep` now carry it as a real field, but older rows still
+ * only have `metadata.failureKind`. {@link readFailureKind} reads both, so this
+ * screen is correct against either shape and never has to know which it got.
  */
 import {
   Ban,
@@ -29,27 +28,11 @@ import {
   Gauge,
   type LucideIcon,
 } from 'lucide-react';
+import { FAILURE_KINDS, type FailureKind } from '../../../shared/runs';
 import type { Tone } from '../../lib/tone';
 
-/**
- * Mirrors `FAILURE_KINDS` in the runs module. Duplicated rather than imported
- * because the renderer may not reach into `src/main/**` — it is a lint error,
- * and this list is part of the wire vocabulary, not of main's internals.
- */
-export const FAILURE_KINDS = [
-  'quota',
-  'rate_limit',
-  'auth',
-  'timeout',
-  'budget_exceeded',
-  'max_turns',
-  'engine_error',
-  'spawn_failed',
-  'cancelled',
-  'interrupted',
-  'internal',
-] as const;
-export type FailureKind = (typeof FAILURE_KINDS)[number];
+export { FAILURE_KINDS, isQuotaFailure } from '../../../shared/runs';
+export type { FailureKind } from '../../../shared/runs';
 
 const KIND_SET = new Set<string>(FAILURE_KINDS);
 
@@ -78,11 +61,6 @@ export function readFailureKind(source: unknown): FailureKind | undefined {
     return asKind((metadata as { failureKind?: unknown }).failureKind);
   }
   return undefined;
-}
-
-/** True when the account is out of capacity, not when the code is broken. */
-export function isQuotaFailure(kind: FailureKind | undefined): boolean {
-  return kind === 'quota' || kind === 'rate_limit';
 }
 
 export interface FailureExplanation {

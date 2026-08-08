@@ -11,6 +11,7 @@
  */
 import type { JsonObject, LogLevel, Usage } from '../../../shared/common';
 import type { EngineInfo } from '../../../shared/engines';
+import type { RunPlanInput, RunStepInput } from '../../../shared/runs';
 
 /* ------------------------------------------------------------------ */
 /* Failure classification                                              */
@@ -296,6 +297,9 @@ export interface Planner {
       allowedTools?: string[];
       maxTurns?: number;
       maxCostUsd?: number;
+      /** An explicit decomposition; `plan` wins over `steps`. */
+      steps?: RunStepInput[];
+      plan?: RunPlanInput;
       metadata?: JsonObject;
     },
     ctx: PlanContext,

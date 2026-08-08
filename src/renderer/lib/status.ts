@@ -94,16 +94,22 @@ export function toolCallStatusMeta(status: ToolCallStatus): StatusMeta {
 }
 
 const TASK_STATUS_META: Record<TaskStatus, StatusMeta> = {
-  inbox: { label: 'Inbox', tone: 'neutral', icon: Inbox },
   todo: { label: 'To do', tone: 'neutral', icon: CircleDashed },
-  doing: { label: 'Doing', tone: 'info', icon: Play, active: true },
+  in_progress: { label: 'In progress', tone: 'info', icon: Play, active: true },
+  awaiting_approval: {
+    label: 'Awaiting approval',
+    tone: 'warning',
+    icon: Inbox,
+    active: true,
+  },
+  ready: { label: 'Ready', tone: 'success', icon: CircleDot },
   blocked: { label: 'Blocked', tone: 'warning', icon: AlertTriangle },
   done: { label: 'Done', tone: 'success', icon: CheckCircle2 },
-  cancelled: { label: 'Cancelled', tone: 'neutral', icon: Ban },
+  rejected: { label: 'Rejected', tone: 'neutral', icon: Ban },
 };
 
 export function taskStatusMeta(status: TaskStatus): StatusMeta {
-  return TASK_STATUS_META[status] ?? TASK_STATUS_META.inbox;
+  return TASK_STATUS_META[status] ?? TASK_STATUS_META.todo;
 }
 
 const TASK_PRIORITY_META: Record<TaskPriority, StatusMeta> = {

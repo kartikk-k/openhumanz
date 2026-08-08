@@ -57,6 +57,36 @@ export const RUN_STEP_STATUSES = [
 export const RunStepStatusSchema = z.enum(RUN_STEP_STATUSES);
 export type RunStepStatus = z.infer<typeof RunStepStatusSchema>;
 
+/**
+ * Why a run or step ended badly.
+ *
+ * `quota` and `rate_limit` are separated from everything else on purpose: they
+ * are the most likely real-world failure and the only ones where the right UI
+ * copy is "your plan is out of capacity", not "something went wrong". A
+ * timeline that can only say `failed` cannot tell those apart, which is why
+ * this is a field rather than a substring of `error`.
+ */
+export const FAILURE_KINDS = [
+  'quota',
+  'rate_limit',
+  'auth',
+  'timeout',
+  'budget_exceeded',
+  'max_turns',
+  'engine_error',
+  'spawn_failed',
+  'cancelled',
+  'interrupted',
+  'internal',
+] as const;
+export const FailureKindSchema = z.enum(FAILURE_KINDS);
+export type FailureKind = z.infer<typeof FailureKindSchema>;
+
+/** True when a failure means "the account is out of capacity", not "a bug". */
+export function isQuotaFailure(kind: string | undefined): boolean {
+  return kind === 'quota' || kind === 'rate_limit';
+}
+
 export const TOOL_CALL_STATUSES = [
   'pending',
   'awaiting_approval',
@@ -113,6 +143,9 @@ export const RunStepSchema = z.object({
   usage: UsageSchema.optional(),
   summary: z.string().optional(),
   error: z.string().optional(),
+  /** Set whenever `status` is `failed`. Names the failure for the timeline. */
+  failureKind: FailureKindSchema.optional(),
+  metadata: JsonObjectSchema.default({}),
 });
 export type RunStep = z.infer<typeof RunStepSchema>;
 
@@ -135,6 +168,12 @@ export const RunSchema = z.object({
   durationMs: z.number().int().nonnegative().optional(),
   usage: UsageSchema.optional(),
   error: z.string().optional(),
+  /**
+   * Set whenever `status` is `failed` (and to `cancelled` on a cancel). This
+   * used to be mirrored into `metadata.failureKind` because there was no field
+   * for it; the timeline reads it here now.
+   */
+  failureKind: FailureKindSchema.optional(),
   metadata: JsonObjectSchema.default({}),
 });
 export type Run = z.infer<typeof RunSchema>;
@@ -226,6 +265,8 @@ export const RunEventSchema = z.discriminatedUnion('type', [
     status: RunStatusSchema,
     usage: UsageSchema.optional(),
     error: z.string().optional(),
+    /** So a live timeline can say "out of quota" without re-fetching the run. */
+    failureKind: FailureKindSchema.optional(),
   }),
 ]);
 export type RunEvent = z.infer<typeof RunEventSchema>;
@@ -250,6 +291,34 @@ export const RunListQuerySchema = z.object({
 export type RunListQuery = z.infer<typeof RunListQuerySchema>;
 export type RunListQueryInput = z.input<typeof RunListQuerySchema>;
 
+/**
+ * One step of an explicit decomposition supplied by the caller.
+ *
+ * Every ceiling is optional here and filled in by the planner, which clamps it
+ * to the run-level budget — a step may ask for less than the run allows, never
+ * more. This shape was the orchestrator's private `PlanInputSchema`; it is
+ * contract now because the scheduler and the composer both send one.
+ */
+export const RunStepInputSchema = z.object({
+  name: z.string().min(1),
+  prompt: z.string().min(1),
+  allowedTools: z.array(z.string()).optional(),
+  maxTurns: z.number().int().positive().optional(),
+  maxCostUsd: z.number().positive().optional(),
+  cwd: z.string().optional(),
+  /** Resume the previous step's engine session instead of starting fresh. */
+  continueSession: z.boolean().optional(),
+  model: z.string().optional(),
+});
+export type RunStepInput = z.infer<typeof RunStepInputSchema>;
+
+/** An explicit decomposition: an optional title plus at least one step. */
+export const RunPlanInputSchema = z.object({
+  title: z.string().min(1).optional(),
+  steps: z.array(RunStepInputSchema).min(1),
+});
+export type RunPlanInput = z.infer<typeof RunPlanInputSchema>;
+
 export const RunStartRequestSchema = z.object({
   title: z.string().min(1).optional(),
   prompt: z.string().min(1),
@@ -262,6 +331,16 @@ export const RunStartRequestSchema = z.object({
   allowedTools: z.array(z.string()).optional(),
   maxTurns: z.number().int().positive().optional(),
   maxCostUsd: z.number().positive().optional(),
+  /**
+   * An explicit decomposition. Shorthand for `plan: { steps }`; if both are
+   * given, `plan` wins because it can also carry a title.
+   *
+   * Omit both and the run is a single step containing the whole prompt — the
+   * honest default, since guessing a decomposition without a model to do it
+   * splits the budget without splitting the blast radius.
+   */
+  steps: z.array(RunStepInputSchema).min(1).optional(),
+  plan: RunPlanInputSchema.optional(),
   metadata: JsonObjectSchema.optional(),
 });
 export type RunStartRequest = z.infer<typeof RunStartRequestSchema>;

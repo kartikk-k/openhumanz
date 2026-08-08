@@ -66,6 +66,7 @@ import {
 } from './store';
 import {
   systemClock,
+  DEFAULT_MISSED_RUN_POLICY,
   type CounterReader,
   type MissedRunPolicy,
   type ScheduleClock,

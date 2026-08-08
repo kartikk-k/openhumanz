@@ -31,7 +31,6 @@ import {
   TaskCardUpdate,
   resolveBoard,
   toCardStatus,
-  toSharedStatus,
 } from './schema';
 
 /* ------------------------------------------------------------------ */
@@ -111,9 +110,14 @@ function stringArrayColumn(value: unknown): string[] {
   return [];
 }
 
-/** One row as a card. `status` is always derived, never read from the row. */
+/**
+ * One row as a card.
+ *
+ * `card_status` is still the column name — there is real data in it — but it
+ * holds a `TaskStatus` directly now. {@link toCardStatus} normalises rows
+ * written with the superseded spellings (`inbox`, `doing`, `cancelled`).
+ */
 export function rowToCard(row: Row): TaskCard {
-  const cardStatus = toCardStatus(text(row.card_status, 'todo'));
   return {
     id: text(row.id),
     board: enumColumn(row.board, BOARD_KINDS, 'personal'),
@@ -121,8 +125,7 @@ export function rowToCard(row: Row): TaskCard {
     title: text(row.title),
     description: text(row.description),
     notes: text(row.notes),
-    cardStatus,
-    status: toSharedStatus(cardStatus),
+    status: toCardStatus(text(row.card_status, 'todo')),
     priority: enumColumn(row.priority, TASK_PRIORITIES, 'normal'),
     objective: text(row.objective),
     desiredOutcome: text(row.desired_outcome),
@@ -280,19 +283,19 @@ export function createTaskStore(db: Db): TaskStore {
 
   const insert = (input: TaskCardCreate, at: string): TaskCard => {
     const board = resolveBoard(input);
-    const cardStatus = toCardStatus(input.status);
+    // A writer may send a legacy spelling; normalise before it is stored.
+    const status = toCardStatus(input.status);
     const id = randomId('task');
     const parsed = TaskCardSchema.parse({
       ...input,
       id,
       board: board.board,
       conversationId: board.conversationId,
-      cardStatus,
-      status: toSharedStatus(cardStatus),
+      status,
       order: input.order ?? nextOrder(board),
       createdAt: at,
       updatedAt: at,
-      completedAt: cardStatus === 'done' ? at : undefined,
+      completedAt: status === 'done' ? at : undefined,
     });
 
     db.run(
@@ -310,7 +313,7 @@ export function createTaskStore(db: Db): TaskStore {
         parsed.title,
         parsed.description,
         parsed.notes,
-        parsed.cardStatus,
+        parsed.status,
         parsed.priority,
         parsed.objective,
         parsed.desiredOutcome,
