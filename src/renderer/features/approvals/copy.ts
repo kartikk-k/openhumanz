@@ -79,7 +79,9 @@ export const DENY_COPY = {
 };
 
 export function approveScopeCopy(scope: ApprovalScope): ApproveScopeCopy {
-  return APPROVE_SCOPES.find((item) => item.scope === scope) ?? APPROVE_SCOPES[0];
+  return (
+    APPROVE_SCOPES.find((item) => item.scope === scope) ?? APPROVE_SCOPES[0]
+  );
 }
 
 /**

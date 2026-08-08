@@ -234,7 +234,11 @@ export function ApprovalCard({
           onOpenChange={onExpandedChange}
           icon={FileTerminal}
           title="Exactly what will run"
-          meta={<span className={mono}>{argumentCount(approval.toolArguments)}</span>}
+          meta={
+            <span className={mono}>
+              {argumentCount(approval.toolArguments)}
+            </span>
+          }
         >
           <div className="space-y-2">
             {approval.rawDetail ? (
@@ -262,7 +266,10 @@ export function ApprovalCard({
             >
               <Hash size={11} aria-hidden="true" />
               <span className={eyebrow}>Match key</span>
-              <span className={cn(mono, 'truncate')} title={approval.fingerprint}>
+              <span
+                className={cn(mono, 'truncate')}
+                title={approval.fingerprint}
+              >
                 {approval.fingerprint}
               </span>
             </p>

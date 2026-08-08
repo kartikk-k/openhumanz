@@ -89,7 +89,8 @@ export function MetaDivider() {
 /* ------------------------------------------------------------------ */
 
 const PANEL: Record<Tone, string> = {
-  neutral: 'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60',
+  neutral:
+    'border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60',
   accent:
     'border-indigo-200 bg-indigo-50/70 dark:border-indigo-500/30 dark:bg-indigo-500/10',
   info: 'border-sky-200 bg-sky-50/70 dark:border-sky-500/30 dark:bg-sky-500/10',

@@ -31,19 +31,23 @@ export interface RiskSignal {
  */
 const SIGNALS: ReadonlyArray<{ pattern: RegExp; signal: RiskSignal }> = [
   {
-    pattern: /\b(delete|deletes|remove|removes|destroy|purge|drop|erase|wipe|trash|uninstall)\b|_delete|_remove/i,
+    pattern:
+      /\b(delete|deletes|remove|removes|destroy|purge|drop|erase|wipe|trash|uninstall)\b|_delete|_remove/i,
     signal: { label: 'Deletes data', tone: 'danger' },
   },
   {
-    pattern: /\b(pay|pays|payment|charge|charges|purchase|order|invoice|transfer|refund)\b/i,
+    pattern:
+      /\b(pay|pays|payment|charge|charges|purchase|order|invoice|transfer|refund)\b/i,
     signal: { label: 'Spends money', tone: 'danger' },
   },
   {
-    pattern: /\b(send|sends|email|emails|mail|reply|replies|post|publish|message|sms|notify)\b|_send|_email/i,
+    pattern:
+      /\b(send|sends|email|emails|mail|reply|replies|post|publish|message|sms|notify)\b|_send|_email/i,
     signal: { label: 'Sends on your behalf', tone: 'warning' },
   },
   {
-    pattern: /\b(overwrite|overwrites|replace|replaces|rename|move|moves|archive|revoke|cancel|reschedule)\b/i,
+    pattern:
+      /\b(overwrite|overwrites|replace|replaces|rename|move|moves|archive|revoke|cancel|reschedule)\b/i,
     signal: { label: 'Changes existing data', tone: 'warning' },
   },
 ];

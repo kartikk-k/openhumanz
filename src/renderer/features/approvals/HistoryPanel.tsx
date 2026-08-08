@@ -54,10 +54,11 @@ export function HistoryPanel({ now, className }: HistoryPanelProps) {
         title="This is every decision made in this window, not the full log"
         detail={`missing channel · ${MISSING_CHANNEL}`}
       >
-        Main keeps the real thing — <span className={mono}>approvals_audit</span>{' '}
-        holds every decision with the arguments it was made about, including the
-        ones a standing grant made for you. There is no IPC channel that reads
-        it, so this list starts empty every time the app restarts. Adding{' '}
+        Main keeps the real thing —{' '}
+        <span className={mono}>approvals_audit</span> holds every decision with
+        the arguments it was made about, including the ones a standing grant
+        made for you. There is no IPC channel that reads it, so this list starts
+        empty every time the app restarts. Adding{' '}
         <span className={mono}>{MISSING_CHANNEL}</span> to{' '}
         <span className={mono}>src/shared/ipc.ts</span> over the existing{' '}
         <span className={mono}>queryAudit()</span> is the whole fix.
@@ -137,7 +138,12 @@ function DecisionRow({ entry, now }: { entry: DecisionRecord; now: number }) {
           </p>
         ) : null}
         <CodeBlock code={args} language="json" maxHeight="16rem" />
-        <p className={cn('flex flex-wrap gap-x-3 gap-y-1 text-[11px]', textMuted)}>
+        <p
+          className={cn(
+            'flex flex-wrap gap-x-3 gap-y-1 text-[11px]',
+            textMuted,
+          )}
+        >
           <span>
             <span className={eyebrow}>Decided by</span>{' '}
             <span className={mono}>{entry.decidedBy}</span>

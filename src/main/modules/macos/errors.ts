@@ -453,13 +453,22 @@ export function mapAppleScriptError(input: MapErrorInput): MacosError {
 
   // No usable number. Under hardened runtime a blocked event can come back with
   // an empty stderr and exit 1, so these text probes are the only signal left.
+  //
+  // Order matters and the two permission probes are easy to get backwards.
+  // "Operation not permitted" is the errno EPERM wording, which means a
+  // filesystem read was blocked — Full Disk Access. A bare "not permitted"
+  // substring also appears inside the Apple Events denial sentence, so the
+  // specific EPERM phrase has to be tested first or every FDA failure is
+  // misreported as an Automation denial and the user is sent to the wrong pane.
+  if (/\boperation not permitted\b/i.test(cleaned)) {
+    return finish(ERROR_TABLE[-10660], -10660);
+  }
   if (
-    /not authori[sz]ed|not permitted|doesn.t have permission/i.test(cleaned)
+    /not (authori[sz]ed|allowed|permitted) to send apple events|doesn.t have permission/i.test(
+      cleaned,
+    )
   ) {
     return finish(ERROR_TABLE[-1743], -1743);
-  }
-  if (/operation not permitted/i.test(cleaned)) {
-    return finish(ERROR_TABLE[-10660], -10660);
   }
   if (/(isn.t|is not) running/i.test(cleaned)) {
     return finish(ERROR_TABLE[-600], -600);

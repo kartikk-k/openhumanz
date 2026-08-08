@@ -87,7 +87,9 @@ export function ApprovalQueue({
   const load = useApprovalsStore((state) => state.load);
   const resolve = useApprovalsStore((state) => state.resolve);
 
-  const approvalSettings = useSettingsStore((state) => state.settings.approvals);
+  const approvalSettings = useSettingsStore(
+    (state) => state.settings.approvals,
+  );
   const allowAlways = approvalSettings.allowAlwaysScope;
   const defaultScope = approvalSettings.defaultScope;
 

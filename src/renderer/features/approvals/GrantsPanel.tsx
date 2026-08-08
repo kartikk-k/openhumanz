@@ -264,7 +264,11 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
                           </Badge>
                         ) : (
                           <span
-                            className={cn('truncate text-[11px]', mono, textMuted)}
+                            className={cn(
+                              'truncate text-[11px]',
+                              mono,
+                              textMuted,
+                            )}
                             title={grant.fingerprint}
                           >
                             {grant.fingerprint}
@@ -286,7 +290,9 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
                       </span>
                     </TableCell>
                     <TableCell nowrap>
-                      <span className={cn(mono, 'text-zinc-700 dark:text-zinc-300')}>
+                      <span
+                        className={cn(mono, 'text-zinc-700 dark:text-zinc-300')}
+                      >
                         {grant.toolName}
                       </span>
                     </TableCell>
