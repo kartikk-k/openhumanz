@@ -146,13 +146,18 @@ function readComposioTool(raw: unknown): {
 
 /**
  * Build a ToolDefinition for one Composio tool. The handler executes it through
- * the injected `execute` (which calls Composio server-side). Marked
- * `sideEffecting: true` so every connected-app call routes through the approval
- * gate — the app should never send mail or delete a message unattended.
+ * the injected `execute` (which calls Composio server-side).
+ *
+ * `sideEffecting` follows what the tool actually does: a read-only tool (Composio
+ * tags it `readOnlyHint`) is `false`, so reads never prompt — the default the
+ * user wants. Anything that writes is `true` and routes through the approval
+ * gate. When we cannot tell (no tags), it stays `true`: an unnecessary approval
+ * card is a nuisance, an ungated write is a breach.
  */
 export function composioToolToDefinition(
   raw: unknown,
   execute: (slug: string, args: Record<string, unknown>) => Promise<unknown>,
+  readOnly = false,
 ): AnyToolDefinition | null {
   const parsed = readComposioTool(raw);
   if (!parsed) return null;
@@ -163,8 +168,8 @@ export function composioToolToDefinition(
     inputSchema: jsonSchemaToZod(parsed.parameters) as z.ZodType<
       Record<string, unknown>
     >,
-    sideEffecting: true,
-    annotations: { title: parsed.name },
+    sideEffecting: !readOnly,
+    annotations: { title: parsed.name, readOnlyHint: readOnly },
     handler: async (input) => execute(parsed.name, input ?? {}),
   };
   return definition as AnyToolDefinition;

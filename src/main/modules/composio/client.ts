@@ -50,11 +50,13 @@ interface ComposioSdk {
   /**
    * The underlying `@composio/client`. Its responses are snake_case and carry
    * fields the camelCase SDK view strips — notably `user_id`, the entity a
-   * connected account belongs to, which `tools.execute` requires. Optional so a
-   * fake SDK need not provide it.
+   * connected account belongs to, which `tools.execute` requires, and the tool
+   * `tags` (`readOnlyHint` / `createHint` / …) we use to tell reads from writes.
+   * Optional so a fake SDK need not provide it.
    */
   client?: {
     connectedAccounts: { list(query?: unknown): Promise<unknown> };
+    tools: { list(query?: unknown): Promise<unknown> };
   };
 }
 
@@ -73,8 +75,28 @@ export interface ComposioClient {
    * for building agent tools. Returns [] when nothing is connected.
    */
   rawToolsForConnected(): Promise<unknown[]>;
+  /**
+   * The slugs of connected-toolkit tools that only *read* — Composio tags them
+   * `readOnlyHint` (and no create/update/delete/destructive hint). Everything
+   * not in this set is treated as side-effecting and routed through approval.
+   * The function-shape descriptors from `rawToolsForConnected` drop these tags,
+   * so we read them from the raw client's tool list. Returns an empty set when
+   * the raw client is unavailable (then every tool is side-effecting — the
+   * safe default).
+   */
+  readOnlySlugs(): Promise<Set<string>>;
   /** Execute one Composio tool. */
   execute(slug: string, args: Record<string, unknown>): Promise<unknown>;
+}
+
+/** Tags that mean a tool writes, overriding a stray `readOnlyHint`. */
+const WRITE_HINT = /create|update|delete|destructive|write/i;
+
+/** True when a tool's Composio tags say it only reads. */
+function isReadOnlyTags(tags: unknown): boolean {
+  if (!Array.isArray(tags)) return false;
+  const list = tags.filter((t): t is string => typeof t === 'string');
+  return list.includes('readOnlyHint') && !list.some((t) => WRITE_HINT.test(t));
 }
 
 /** Pull the tool-descriptor array out of whatever shape `tools.get` returns. */
@@ -230,6 +252,34 @@ export async function createComposioClient(
         out.push(...toDescriptorList(raw));
       }
       return out;
+    },
+
+    async readOnlySlugs() {
+      const rawList = sdk.client?.tools?.list;
+      if (!rawList) return new Set<string>();
+      const map = await toolkitUserIds();
+      const readOnly = new Set<string>();
+      for (const toolkit of map.keys()) {
+        // Page through the toolkit's tools; the list is filtered by
+        // `toolkit_slug` (snake_case — the camelCase form is ignored and
+        // returns every toolkit).
+        let cursor: string | undefined;
+        for (let page = 0; page < 20; page += 1) {
+          // eslint-disable-next-line no-await-in-loop
+          const res = (await sdk.client!.tools.list({
+            toolkit_slug: toolkit,
+            limit: 100,
+            ...(cursor ? { cursor } : {}),
+          })) as { items?: unknown[]; next_cursor?: string | null };
+          for (const item of res.items ?? []) {
+            const t = item as { slug?: string; tags?: unknown };
+            if (t.slug && isReadOnlyTags(t.tags)) readOnly.add(String(t.slug));
+          }
+          cursor = res.next_cursor ?? undefined;
+          if (!cursor) break;
+        }
+      }
+      return readOnly;
     },
 
     async execute(slug, args) {

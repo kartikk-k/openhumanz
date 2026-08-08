@@ -92,14 +92,35 @@ export function createComposioModule(): ComposioModule {
       return;
     }
     try {
-      const raw = await c.rawToolsForConnected();
+      const [raw, readOnly] = await Promise.all([
+        c.rawToolsForConnected(),
+        c.readOnlySlugs().catch(() => new Set<string>()),
+      ]);
       const built = raw
-        .map((tool) =>
-          composioToolToDefinition(tool, (slug, args) => c.execute(slug, args)),
-        )
+        .map((tool) => {
+          const slug =
+            (
+              tool as {
+                function?: { name?: string };
+                slug?: string;
+                name?: string;
+              }
+            ).function?.name ??
+            (tool as { slug?: string }).slug ??
+            (tool as { name?: string }).name ??
+            '';
+          return composioToolToDefinition(
+            tool,
+            (s, args) => c.execute(s, args),
+            readOnly.has(slug),
+          );
+        })
         .filter((t): t is AnyToolDefinition => t !== null);
       cachedTools = built;
-      logger?.info('composio tools refreshed', { count: built.length });
+      logger?.info('composio tools refreshed', {
+        count: built.length,
+        readOnly: built.filter((t) => t.sideEffecting === false).length,
+      });
     } catch (error) {
       logger?.error('composio tools refresh failed', {
         error: error instanceof Error ? error.message : String(error),
