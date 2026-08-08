@@ -24,7 +24,8 @@ Every number below was produced by a real run, not asserted.
 | Area | Evidence |
 |---|---|
 | Whole backend boots | 95 ms, 8 modules, 35 tools, MCP listening, clean shutdown |
-| Approval gate | 55/55 — `once` doesn't cover the next call, `run` dies with the run, `always` survives a real close/reopen, a grant on "create" cannot authorise "delete" |
+| Approval gate | 86/86 — `once` doesn't cover the next call, `run` dies with the run, `always` survives a real close/reopen, a grant on "create" cannot authorise "delete", audit log round-trips full arguments |
+| Feature screens | 7 screens; SSR/jsdom checks per screen (runs 13, approvals 8+28, memory 63, settings 12, schedule 6, tasks 7) |
 | MCP server + shim | 51/51 — real MCP client over the socket, bad token dropped with no reply, out-of-scope tool rejected, real shim round-trip |
 | Engine adapter | 146/146 against a fake CLI; stray `ANTHROPIC_API_KEY` provably stripped from the child |
 | Engine↔orchestrator bridge | 89/89 — cancel kills the grandchild, quota ≠ our budget ceiling |
@@ -49,6 +50,9 @@ Every number below was produced by a real run, not asserted.
 - No reveal-in-OS / open-in-editor channel; the memory browser shows a copyable absolute path instead.
 - No rename/delete for memory notes (`memory:write` only).
 - Settings rejections are logged but not surfaced to the UI — a `settings:diagnostics` channel would close it.
+- `MAX_GOALS` (8) and `MAX_GOAL_TOKENS` (500) live in the goals module and are mirrored as constants in the renderer; they belong in `src/shared/tasks.ts`.
+- `BridgeNotice` is duplicated in the schedule and tasks features (features may not import each other). It is the most-used component in the app — promote it to the design system.
+- No `ScheduledJob` field for a last-output preview; the schedule table infers it from run history.
 - No `onboarding:changed` broadcast (fine with one window).
 - A note consisting **only** of a heading produces no body chunk and is therefore unsearchable. Minor, but real.
 - `ONBOARDING_STEPS` in shared still reads `permissions | done` where the flow now means "data source" and "first run".
