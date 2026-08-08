@@ -1,0 +1,17 @@
+# Bun configuration
+# Docs: https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Use an exact, reproducible install from the lockfile in CI.
+# Locally, `bun install` still updates the lockfile as expected.
+exact = false
+
+# Electron ships its own bundled runtime, so keep the full dependency
+# tree hoisted the way electron-builder / electron-rebuild expect.
+# (peer + optional deps are installed by default; left explicit for clarity.)
+peer = true
+optional = true
+
+[run]
+# Prefer running scripts through Bun rather than shelling out to npm.
+bun = true
