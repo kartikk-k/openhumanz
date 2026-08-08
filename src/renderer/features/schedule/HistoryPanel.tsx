@@ -189,6 +189,17 @@ export function HistoryPanel({
               {MISSED_RUN_POLICY_HINT[job.missedRunPolicy]}
             </span>
           </DetailRow>
+          <DetailRow label="Type">
+            {job.recurring ? (
+              <Badge tone="neutral" variant="soft">
+                Recurring
+              </Badge>
+            ) : (
+              <Badge tone="neutral" variant="outline">
+                One-time
+              </Badge>
+            )}
+          </DetailRow>
           <DetailRow label="Next run">
             {job.enabled ? (
               <>
@@ -198,7 +209,11 @@ export function HistoryPanel({
                 </span>
               </>
             ) : (
-              <span className={textMuted}>Disabled — will not fire</span>
+              <span className={textMuted}>
+                {job.recurring
+                  ? 'Disabled — will not fire'
+                  : 'One-time reminder — already fired'}
+              </span>
             )}
           </DetailRow>
           <DetailRow label="Last run">

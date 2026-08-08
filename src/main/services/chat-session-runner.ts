@@ -76,6 +76,8 @@ interface RunOptions {
   sessionId?: string;
   mcpConfigPath?: string;
   allowedTools?: string[];
+  disallowedTools?: string[];
+  appendSystemPrompt?: string;
   model?: string;
   maxTurns?: number;
   maxCostUsd?: number;
@@ -85,6 +87,44 @@ interface RunOptions {
   env?: Record<string, string>;
   logger?: Logger;
 }
+
+/**
+ * The Claude Code CLI ships its own in-memory `CronCreate`/`CronList`/
+ * `CronDelete` tools. They only live for the current CLI process, so a reminder
+ * scheduled through them silently dies when the chat turn ends and never shows
+ * in the Schedule screen. We disallow them so the assistant uses the app's own
+ * persistent `schedule_create` MCP tool instead.
+ */
+const DISALLOWED_CLI_TOOLS = ['CronCreate', 'CronList', 'CronDelete'];
+
+/**
+ * Steer scheduling toward the app's persistent scheduler.
+ *
+ * The app's tools reach the model as MCP tools named `mcp__assistant__<tool>`,
+ * and with a large tool surface the CLI defers them behind ToolSearch — so the
+ * model, searching for "schedule_create", finds the unrelated built-in
+ * `TaskCreate` instead and concludes no scheduler exists. This prompt gives the
+ * exact tool names and tells the model to load and call them directly, so a
+ * reminder request never dead-ends.
+ */
+const CHAT_SYSTEM_PROMPT =
+  'You are running inside a desktop assistant app that has its own persistent ' +
+  'scheduler, exposed as MCP tools. To schedule anything — reminders, ' +
+  'recurring checks, one-off future tasks — you MUST use these exact tools:\n' +
+  '  • mcp__assistant__schedule_create — create a scheduled job (cron + prompt)\n' +
+  '  • mcp__assistant__schedule_list — list scheduled jobs\n' +
+  '  • mcp__assistant__schedule_update — change a job\n' +
+  '  • mcp__assistant__schedule_delete — remove a job\n' +
+  'If these tools are not already loaded, load them first with ToolSearch ' +
+  '(query "select:mcp__assistant__schedule_create,mcp__assistant__schedule_list,' +
+  'mcp__assistant__schedule_update,mcp__assistant__schedule_delete"), then call ' +
+  'them. They persist to the app database, appear on the Schedule screen, fire ' +
+  'even after this conversation ends, and notify the user. Do NOT use the ' +
+  'built-in CronCreate/CronList/CronDelete tools (session-only, will not fire ' +
+  'once the turn ends) and do NOT use TaskCreate/TaskUpdate for reminders ' +
+  '(those only track work within this session). If a schedule tool call is ' +
+  'ever blocked or missing, say so plainly rather than substituting a ' +
+  'session-only alternative.';
 
 export interface ChatSessionRunner {
   /** Run one turn, streaming engine events to `onEvent`. Resolves at the end. */
@@ -133,6 +173,10 @@ export function createChatSessionRunner(
         cwd: request.cwd,
         mcpConfigPath,
         allowedTools: engineAllowedTools,
+        // Block the CLI's ephemeral cron tools so scheduling goes through the
+        // app's persistent scheduler, and tell the model why.
+        disallowedTools: DISALLOWED_CLI_TOOLS,
+        appendSystemPrompt: CHAT_SYSTEM_PROMPT,
         model: request.model,
         // Token-level streaming: the UI renders deltas as they arrive instead
         // of waiting for the whole message (or the transcript file flush).

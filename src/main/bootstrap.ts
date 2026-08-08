@@ -48,12 +48,16 @@ import tasksModule from './modules/tasks';
 import goalsModule from './modules/goals';
 import memoryModule from './modules/memory';
 import { createScheduleModule } from './modules/schedule';
-import settingsAppModule, { configureSettings } from './modules/settings';
+import settingsAppModule, {
+  configureSettings,
+  getSettingsStore,
+} from './modules/settings';
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
 import { createChatModule } from './modules/chat';
 import { createChatSessionRunner } from './services/chat-session-runner';
 import { CLAUDE_CODE_ENGINE_ID } from './services/engines/claude-code';
+import { createNotificationService } from './services/notifications';
 
 import type { IpcPushChannel, IpcPushPayload } from '../shared/ipc';
 import { IPC_PUSH } from '../shared/ipc';
@@ -262,17 +266,45 @@ export async function bootstrap(): Promise<AppServices> {
   // The scheduler already evaluated its own deterministic condition before
   // emitting. Passing an explicit `() => true` keeps that visible in review
   // rather than implicit — nothing starts a CLI invocation uncondionally.
+  //
+  // Load the job so the run carries its real prompt and settings. Without this
+  // the run spawned with an empty prompt and no job linkage, so a fired
+  // reminder did nothing.
   appEvents.on('schedule:due', ({ jobId }) => {
+    const job = scheduleModule.scheduler.get(jobId);
+    if (!job) {
+      logger.warn('scheduled job fired but was not found', { jobId });
+      return;
+    }
     void orchestrator
       .startIfCondition({
-        request: { prompt: '', metadata: { scheduleJobId: jobId } },
+        request: {
+          title: job.name,
+          prompt: job.prompt,
+          engine: job.engine,
+          allowedTools: job.allowedTools,
+          maxTurns: job.maxTurns,
+          maxCostUsd: job.maxCostUsd,
+          scheduledJobId: job.id,
+          trigger: 'schedule',
+        },
         condition: () => true,
-        reason: `scheduled job ${jobId}`,
+        reason: `scheduled job ${job.name} (${jobId})`,
       })
       .catch((error) => logger.error('scheduled dispatch failed', error));
   });
 
   bridgeEventsToRenderer();
+
+  // OS notifications: tell the user when a scheduled reminder has run, a run
+  // finishes (if they opted in), or an approval is waiting. Reads the live
+  // settings on each event, so toggling notifications takes effect at once.
+  createNotificationService({
+    events: appEvents,
+    settings: getSettingsStore(),
+    runs: getRunStore(),
+    logger: logger.child('notifications'),
+  }).start();
 
   logger.info('ready', { tools: registry.tools().length });
 

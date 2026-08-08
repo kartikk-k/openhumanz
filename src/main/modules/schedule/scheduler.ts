@@ -394,6 +394,18 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
 
   /** Move `next_run_at` on before doing anything that can fail. */
   const advance = (job: ScheduledJob, fromMs: number): string | null => {
+    // A one-shot job has now spent its single occurrence: disable it (keeping
+    // the row as history) rather than scheduling the next cron occurrence.
+    if (!job.recurring) {
+      requireStore().updateJob(job.id, {
+        next_run_at: null,
+        enabled: false,
+      });
+      log()?.info('one-shot schedule job disabled after firing', {
+        jobId: job.id,
+      });
+      return null;
+    }
     try {
       const next = nextRunAfter(
         job.cron,
@@ -552,6 +564,7 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
       timezone,
       human_readable: describeCron(parsed.cron, timezone),
       enabled: isEnabled,
+      recurring: parsed.recurring ?? true,
       condition_json: condition,
       missed_run_policy: policy,
       prompt: parsed.prompt,

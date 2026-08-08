@@ -52,6 +52,16 @@ export const INHERITED_SESSION_ENV_VARS = [
   'CLAUDE_CODE_EXECPATH',
   'CLAUDE_PID',
   'CLAUDE_EFFORT',
+  // In dev the app is launched with `NODE_OPTIONS="-r ts-node/register …"`.
+  // The Electron main process inherits it, and without stripping it here it
+  // would leak into the CLI *and* into the MCP shim the CLI spawns — a plain
+  // node process that would then try to load ts-node, crash, and take the
+  // whole `assistant` MCP server down ("status: failed", zero tools). Strip
+  // the dev loader so every spawned helper starts as a clean node.
+  'NODE_OPTIONS',
+  'TS_NODE_PROJECT',
+  'TS_NODE_TRANSPILE_ONLY',
+  'TS_NODE_COMPILER_OPTIONS',
 ] as const;
 
 export interface ApiKeyEnvFinding {

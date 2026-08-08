@@ -64,6 +64,7 @@ function compactJob(job: ScheduledJob): Record<string, unknown> {
     cron: job.cron,
     timezone: job.timezone,
     enabled: job.enabled,
+    recurring: job.recurring,
     condition: describeCondition(job.condition),
     missedRunPolicy: missedRunPolicyOf(job),
     nextRunAt: job.nextRunAt ?? null,
@@ -92,6 +93,14 @@ const CreateInput = z.object({
   condition: ConditionField.default({ kind: 'always' }),
   missedRunPolicy: MissedRunPolicySchema,
   enabled: z.boolean().default(true),
+  recurring: z
+    .boolean()
+    .default(true)
+    .describe(
+      'Whether the job repeats. Set false for a one-time reminder — it fires ' +
+        'once at the next cron occurrence and is then disabled (kept in the ' +
+        'list as history, not deleted).',
+    ),
   engine: z.string().optional(),
   allowedTools: z.array(z.string()).default([]),
   maxTurns: z.number().int().positive().optional(),
@@ -178,6 +187,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         prompt: input.prompt,
         condition: input.condition,
         enabled: input.enabled,
+        recurring: input.recurring,
         engine: input.engine,
         allowedTools: input.allowedTools,
         maxTurns: input.maxTurns,

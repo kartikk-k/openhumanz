@@ -91,6 +91,16 @@ export const migrations: Migration[] = [
        );`,
     ],
   },
+  {
+    id: '002_recurring',
+    description:
+      'one-shot jobs: a `recurring` flag; false disables after firing',
+    up: [
+      // Existing jobs were all cron-recurring, so default 1 preserves them.
+      `ALTER TABLE schedule_jobs
+         ADD COLUMN recurring INTEGER NOT NULL DEFAULT 1;`,
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -105,6 +115,7 @@ interface JobRow {
   timezone: string;
   human_readable: string;
   enabled: number;
+  recurring: number;
   condition_json: string;
   missed_run_policy: string;
   prompt: string;
@@ -170,6 +181,8 @@ export function rowToJob(row: JobRow): ScheduledJob {
     // unconditional five-minute heartbeat — the exact failure ARCHITECTURE.md
     // names. So the job reads as *off* until a human fixes it.
     enabled: row.enabled !== 0 && condition.success,
+    // Older rows (pre-002 migration) have no column; treat absent as recurring.
+    recurring: row.recurring === undefined ? true : row.recurring !== 0,
     condition: condition.success ? condition.data : { kind: 'always' },
     prompt: row.prompt,
     engine: row.engine ?? undefined,
@@ -235,6 +248,7 @@ const COLUMNS = {
   timezone: (v: unknown) => String(v ?? 'UTC'),
   human_readable: (v: unknown) => String(v ?? ''),
   enabled: (v: unknown) => (v ? 1 : 0),
+  recurring: (v: unknown) => (v === undefined || v ? 1 : 0),
   condition_json: (v: unknown) => JSON.stringify(v ?? { kind: 'always' }),
   missed_run_policy: (v: unknown) => String(v ?? DEFAULT_MISSED_RUN_POLICY),
   prompt: (v: unknown) => String(v),
@@ -263,9 +277,10 @@ type Column = keyof typeof COLUMNS;
 export type JobPatch = Partial<Record<Column, unknown>>;
 
 const SELECT_JOB = `SELECT id, name, description, cron, timezone, human_readable,
-    enabled, condition_json, missed_run_policy, prompt, engine, allowed_tools_json,
-    max_turns, max_cost_usd, next_run_at, last_run_at, last_run_id, last_status,
-    last_skip_reason, created_at, updated_at, metadata_json
+    enabled, recurring, condition_json, missed_run_policy, prompt, engine,
+    allowed_tools_json, max_turns, max_cost_usd, next_run_at, last_run_at,
+    last_run_id, last_status, last_skip_reason, created_at, updated_at,
+    metadata_json
   FROM schedule_jobs`;
 
 /* ------------------------------------------------------------------ */

@@ -80,6 +80,13 @@ export const ScheduledJobSchema = z.object({
   /** Plain-English rendering of `cron`, shown in the jobs table. */
   humanReadable: z.string().default(''),
   enabled: z.boolean().default(true),
+  /**
+   * Whether the job repeats. A one-shot (`recurring: false`) fires at its next
+   * cron occurrence and is then *disabled* — it stays in the list as history
+   * rather than being deleted. Recurring jobs keep advancing to the next
+   * occurrence as before.
+   */
+  recurring: z.boolean().default(true),
   condition: ScheduleConditionSchema.default({ kind: 'always' }),
   /** Prompt handed to the engine when the job fires. */
   prompt: z.string().min(1),
@@ -115,6 +122,7 @@ export const ScheduledJobCreateSchema = ScheduledJobSchema.omit({
   description: true,
   timezone: true,
   enabled: true,
+  recurring: true,
   condition: true,
   allowedTools: true,
   metadata: true,
