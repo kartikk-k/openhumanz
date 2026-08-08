@@ -182,7 +182,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         allowedTools: input.allowedTools,
         maxTurns: input.maxTurns,
         maxCostUsd: input.maxCostUsd,
-        metadata: { missedRunPolicy: input.missedRunPolicy },
+        missedRunPolicy: input.missedRunPolicy,
       });
       return compactJob(job);
     },
@@ -241,10 +241,6 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         : `Update scheduled job ${label}.`;
     },
     handler: async (input) => {
-      const metadata =
-        input.missedRunPolicy === undefined
-          ? undefined
-          : { missedRunPolicy: input.missedRunPolicy };
       const job = await scheduler.update({
         id: input.id,
         name: input.name,
@@ -258,7 +254,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         allowedTools: input.allowedTools,
         maxTurns: input.maxTurns,
         maxCostUsd: input.maxCostUsd,
-        metadata,
+        missedRunPolicy: input.missedRunPolicy,
       });
       return compactJob(job);
     },

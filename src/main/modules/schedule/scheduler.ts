@@ -60,7 +60,7 @@ import {
   createStore,
   missedRunPolicyOf,
   policyFromMetadata,
-  MISSED_POLICY_METADATA_KEY,
+  metadataWithoutPolicy,
   type JobPatch,
   type ScheduleStore,
 } from './store';
@@ -144,14 +144,6 @@ function hostTimezone(): string {
   }
 }
 
-/** Strip the policy alias so it lives in exactly one place on disk. */
-function metadataWithoutPolicy(
-  metadata: Record<string, unknown>,
-): Record<string, unknown> {
-  const copy = { ...metadata };
-  delete copy[MISSED_POLICY_METADATA_KEY];
-  return copy;
-}
 
 function sameCondition(a: ScheduleCondition, b: ScheduleCondition): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
@@ -525,8 +517,12 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
 
     const now = clock.now();
     const at = new Date(now).toISOString();
-    // `ScheduledJobCreateSchema` marks these `.partial()`, so their defaults
-    // are *not* applied on parse — they are genuinely optional on the wire.
+    // Careful: `.partial({k:true})` makes a key optional on the *input* but
+    // leaves its `.default(...)` in place, and zod v4 still applies it. So
+    // `parsed.x` is always populated here and the `??` fallbacks below are
+    // belt-and-braces, not the thing doing the work. To tell "the caller said
+    // this" from "the schema filled it in" you must look at the raw input —
+    // which is what the timezone above and the policy below both do.
     const metadata = parsed.metadata ?? {};
     const isEnabled = parsed.enabled ?? true;
     const condition = await seedCondition(
@@ -536,7 +532,17 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
         readCounter,
       },
     );
-    const policy = policyFromMetadata(metadata);
+    // The real field wins when the caller actually sent one. Otherwise the
+    // legacy `metadata.missedRunPolicy` alias is honoured, so a caller written
+    // against the old shape still means what it said; failing that, the
+    // schema's (quota-safe) default stands.
+    // `.partial()` marks it optional in the *type* even though the default
+    // means it is always present at runtime — hence the final `??`.
+    const parsedPolicy = parsed.missedRunPolicy ?? DEFAULT_MISSED_RUN_POLICY;
+    const policy: MissedRunPolicy =
+      (input as { missedRunPolicy?: unknown }).missedRunPolicy !== undefined
+        ? parsedPolicy
+        : policyFromMetadata(metadata, parsedPolicy);
 
     const job = jobs.insertJob({
       id: randomId('sch'),
@@ -598,10 +604,16 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
 
     if (parsed.metadata !== undefined) {
       patch.metadata_json = metadataWithoutPolicy(parsed.metadata);
+      // Legacy callers still express the policy through metadata; an explicit
+      // `missedRunPolicy` below overrides whatever this decides.
       patch.missed_run_policy = policyFromMetadata(
         parsed.metadata,
         missedRunPolicyOf(existing),
       );
+    }
+
+    if (parsed.missedRunPolicy !== undefined) {
+      patch.missed_run_policy = parsed.missedRunPolicy;
     }
 
     if (parsed.condition !== undefined) {

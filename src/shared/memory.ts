@@ -54,6 +54,11 @@ export const MemorySearchHitSchema = z.object({
   /** Snippet with match markers, safe to render as plain text. */
   snippet: z.string().default(''),
   docTitle: z.string().default(''),
+  /**
+   * Tags on the containing doc. `MemorySearchQuery` filters on these, so
+   * returning them is what lets a result render the chips it was matched by.
+   */
+  docTags: z.array(z.string()).default([]),
   updatedAt: IsoDateTimeSchema,
 });
 export type MemorySearchHit = z.infer<typeof MemorySearchHitSchema>;

@@ -414,6 +414,7 @@ export class MemoryIndexer {
       score: Number(hit.score.toFixed(6)),
       snippet: hit.snippet,
       docTitle: hit.docTitle,
+      docTags: hit.docTags,
       updatedAt: hit.updatedAt || nowIso(),
     }));
   }

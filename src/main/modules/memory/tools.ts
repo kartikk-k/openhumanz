@@ -112,6 +112,7 @@ export function createMemoryTools(
             id: hit.chunk.id,
             path: hit.chunk.docPath,
             title: hit.docTitle,
+            tags: hit.docTags.length > 0 ? hit.docTags : undefined,
             heading: hit.chunk.heading || undefined,
             lines: `${hit.chunk.startLine}-${hit.chunk.endLine}`,
             snippet: snippet.text,

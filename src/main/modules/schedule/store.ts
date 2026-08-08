@@ -131,7 +131,13 @@ function parseJson<T>(text: string | null, fallback: T): T {
   }
 }
 
-/** Storage keeps the policy in its own column; the wire keeps it in metadata. */
+/**
+ * Legacy location for the policy.
+ *
+ * `ScheduledJob.missedRunPolicy` is a real field now, so nothing writes this
+ * key any more. Rows created before the promotion still carry it in
+ * `metadata_json`, and dev workspaces have real data, so reads fall back to it.
+ */
 export const MISSED_POLICY_METADATA_KEY = 'missedRunPolicy';
 
 /**
@@ -146,9 +152,11 @@ export function rowToJob(row: JobRow): ScheduledJob {
     parseJson<unknown>(row.condition_json, { kind: 'always' }),
   );
   const metadata = parseJson<Record<string, unknown>>(row.metadata_json, {});
+  // The column is authoritative. A row written before the field was promoted
+  // may only have it on metadata, so that is the fallback, not the default.
   const policy: MissedRunPolicy = isMissedRunPolicy(row.missed_run_policy)
     ? row.missed_run_policy
-    : DEFAULT_MISSED_RUN_POLICY;
+    : policyFromMetadata(metadata);
 
   return ScheduledJobSchema.parse({
     id: row.id,
@@ -177,16 +185,28 @@ export function rowToJob(row: JobRow): ScheduledJob {
       : 'disabled: the stored condition could not be read',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
-    // The policy is surfaced on `metadata` because `ScheduledJobSchema` has no
-    // field for it (see the module summary) — the column stays authoritative.
-    metadata: { ...metadata, [MISSED_POLICY_METADATA_KEY]: policy },
+    missedRunPolicy: policy,
+    // The policy lives on its own field now; strip the legacy alias so a job
+    // never reports it in two places that could disagree.
+    metadata: metadataWithoutPolicy(metadata),
   });
 }
 
-/** The persisted policy for a job, defaulting to the quota-safe choice. */
+/** Drop the legacy metadata alias so the policy lives in exactly one place. */
+export function metadataWithoutPolicy(
+  metadata: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!(MISSED_POLICY_METADATA_KEY in metadata)) return metadata;
+  const copy = { ...metadata };
+  delete copy[MISSED_POLICY_METADATA_KEY];
+  return copy;
+}
+
+/** The persisted policy for a job. */
 export function missedRunPolicyOf(job: ScheduledJob): MissedRunPolicy {
-  const value = job.metadata?.[MISSED_POLICY_METADATA_KEY];
-  return isMissedRunPolicy(value) ? value : DEFAULT_MISSED_RUN_POLICY;
+  return isMissedRunPolicy(job.missedRunPolicy)
+    ? job.missedRunPolicy
+    : DEFAULT_MISSED_RUN_POLICY;
 }
 
 /** Pull a policy out of a caller-supplied metadata blob. */
