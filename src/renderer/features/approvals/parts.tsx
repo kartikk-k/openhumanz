@@ -212,8 +212,8 @@ export function ChannelNotice({
   className,
 }: ChannelNoticeProps) {
   const body = unavailable
-    ? `This window has no connection to the approval gate, so ${what} cannot be read. Treat it as unknown rather than empty: anything the assistant is waiting on is still waiting, and none of it is shown here.`
-    : `${what} could not be read. The approval gate keeps every pending request until it is answered, so nothing has been lost or auto-approved.`;
+    ? `This window has no connection to the approval gate, so ${what} cannot be read. Treat it as unknown rather than empty — nothing has been cleared or approved on your behalf, it simply cannot be seen from here.`
+    : `Something went wrong reading ${what}. The approval gate holds every pending request until it is answered, so nothing has been lost or auto-approved in the meantime.`;
 
   return (
     <NoticePanel

@@ -199,15 +199,15 @@ export function GrantsPanel({ now, className }: GrantsPanelProps) {
           onClick={() => {
             void refresh();
           }}
-          loading={loading}
+          loading={busy}
         >
           Refresh
         </Button>
       </div>
 
-      {error ? (
+      {read === 'failed' && failure ? (
         <ChannelNotice
-          message={error}
+          message={failure}
           unavailable={bridgeDown}
           what="your standing grants"
           onRetry={() => {

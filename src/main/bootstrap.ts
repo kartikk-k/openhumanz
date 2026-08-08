@@ -49,6 +49,7 @@ import goalsModule from './modules/goals';
 import memoryModule from './modules/memory';
 import { createScheduleModule } from './modules/schedule';
 import settingsAppModule, { configureSettings } from './modules/settings';
+import macosAppModule from './modules/macos';
 
 import type { IpcPushChannel, IpcPushPayload } from '../shared/ipc';
 import { IPC_PUSH } from '../shared/ipc';
@@ -192,6 +193,7 @@ export async function bootstrap(): Promise<AppServices> {
       memoryModule,
       scheduleModule,
       settingsAppModule,
+      macosAppModule,
     ],
     db,
     paths,
