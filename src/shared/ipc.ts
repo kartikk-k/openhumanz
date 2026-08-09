@@ -53,15 +53,13 @@ import type {
   ScheduleRunRecord,
 } from './schedule';
 import type {
-  MemoryDoc,
-  MemoryDocContent,
-  MemoryGetRequest,
-  MemoryIndexStatus,
-  MemoryListQueryInput,
-  MemorySearchHit,
-  MemorySearchQueryInput,
-  MemoryWriteRequestInput,
-} from './memory';
+  MemoryAddRequestInput,
+  MemoryEngineStatus,
+  MemoryForgetRequestInput,
+  MemoryListRequestInput,
+  MemoryPage,
+  MemorySearchRequestInput,
+} from './supermemory';
 import type {
   EngineDetectRequestInput,
   EngineInfo,
@@ -123,12 +121,12 @@ export const IPC = {
     history: 'schedule:history',
   },
   memory: {
-    search: 'memory:search',
-    get: 'memory:get',
     list: 'memory:list',
-    write: 'memory:write',
+    search: 'memory:search',
+    add: 'memory:add',
+    forget: 'memory:forget',
+    retry: 'memory:retry',
     status: 'memory:status',
-    reindex: 'memory:reindex',
   },
   settings: {
     get: 'settings:get',
@@ -177,8 +175,6 @@ export const IPC_PUSH = {
   tasksChanged: 'push:tasks-changed',
   goalsChanged: 'push:goals-changed',
   scheduleChanged: 'push:schedule-changed',
-  memoryIndexed: 'push:memory-indexed',
-  memoryDocChanged: 'push:memory-doc-changed',
   settingsChanged: 'push:settings-changed',
   environmentChanged: 'push:environment-changed',
   chatUpdated: 'push:chat-updated',
@@ -296,22 +292,19 @@ export interface IpcContract {
     response: Page<ScheduleRunRecord>;
   };
 
-  /* memory -------------------------------------------------------- */
-  'memory:search': {
-    request: MemorySearchQueryInput;
-    response: MemorySearchHit[];
+  /* memory (supermemory) ------------------------------------------ */
+  'memory:list': { request: MemoryListRequestInput; response: MemoryPage };
+  'memory:search': { request: MemorySearchRequestInput; response: MemoryPage };
+  'memory:add': { request: MemoryAddRequestInput; response: { id: string } };
+  'memory:forget': {
+    request: MemoryForgetRequestInput;
+    response: { ok: boolean };
   };
-  'memory:get': {
-    request: MemoryGetRequest;
-    response: MemoryDocContent | null;
+  'memory:retry': {
+    request: MemoryForgetRequestInput;
+    response: { ok: boolean };
   };
-  'memory:list': { request: MemoryListQueryInput; response: Page<MemoryDoc> };
-  'memory:write': { request: MemoryWriteRequestInput; response: MemoryDoc };
-  'memory:status': { request: Empty; response: MemoryIndexStatus };
-  'memory:reindex': {
-    request: { full?: boolean };
-    response: MemoryIndexStatus;
-  };
+  'memory:status': { request: Empty; response: MemoryEngineStatus };
 
   /* settings ------------------------------------------------------ */
   'settings:get': { request: Empty; response: Settings };
@@ -533,10 +526,6 @@ export interface IpcPushContract {
   'push:tasks-changed': { ids: string[] };
   'push:goals-changed': { ids: string[] };
   'push:schedule-changed': { ids: string[] };
-  'push:memory-indexed': { status: MemoryIndexStatus };
-  /** A single vault doc was added, rewritten or removed. Path-scoped so the
-   * memory browser can invalidate one row instead of the whole list. */
-  'push:memory-doc-changed': { path: string; deleted: boolean };
   'push:settings-changed': { settings: Settings };
   'push:environment-changed': { status: EnvironmentStatus };
   /** A chat session's transcript changed (new content) or its busy state

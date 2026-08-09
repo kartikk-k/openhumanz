@@ -42,7 +42,6 @@ import {
   ApprovalSettingsSchema,
   EngineSettingsSchema,
   LoggingSettingsSchema,
-  MemorySettingsSchema,
   ScheduleSettingsSchema,
   SettingsSchema,
   UiSettingsSchema,
@@ -177,7 +176,7 @@ interface StorageEntry {
   what: string;
 }
 
-function storageMap(memoryDir: string): StorageEntry[] {
+function storageMap(): StorageEntry[] {
   return [
     {
       path: 'settings.json',
@@ -185,11 +184,11 @@ function storageMap(memoryDir: string): StorageEntry[] {
     },
     {
       path: 'assistant.db',
-      what: 'SQLite: runs, steps, tool calls, tasks, goals, scheduled jobs, approval decisions and the memory index.',
+      what: 'SQLite: runs, steps, tool calls, tasks, goals, scheduled jobs and approval decisions.',
     },
     {
-      path: `${memoryDir || 'memory'}/`,
-      what: 'The memory vault, as Markdown files. Yours to read, edit or delete with any editor.',
+      path: '~/.supermemory/',
+      what: 'The local memory engine — your remembered facts and their embeddings, entirely on-device.',
     },
     {
       path: 'runs/<runId>/',
@@ -241,7 +240,6 @@ export function SettingsScreen() {
   );
 
   const workspaceRoot = settings.workspaceRoot || DEFAULT_WORKSPACE_HINT;
-  const memoryPath = `${workspaceRoot.replace(/\/+$/, '')}/${settings.memory.directory}`;
 
   const engineOptions = useMemo(() => {
     const detected = environment?.engines ?? [];
@@ -444,7 +442,7 @@ export function SettingsScreen() {
               hint="Everything below is relative to this folder."
             />
             <ul className="mt-2 divide-y divide-zinc-100 dark:divide-zinc-800/70">
-              {storageMap(settings.memory.directory).map((entry) => (
+              {storageMap().map((entry) => (
                 <li key={entry.path} className="py-2">
                   <p className={cn(mono, 'text-zinc-800 dark:text-zinc-200')}>
                     {entry.path}
@@ -648,40 +646,26 @@ export function SettingsScreen() {
         <SettingsSection
           id="memory"
           title="Memory"
-          description="The vault is a folder of Markdown files. The index is derived — you can delete it and it rebuilds."
+          description="A local engine remembers things about you from your conversations. Everything stays on this machine."
         >
-          <FieldGrid>
-            <TextSetting
-              id="memory-directory"
-              label="Vault folder"
-              monospace
-              hint={`Relative to the workspace folder. Currently ${memoryPath}`}
-              value={settings.memory.directory}
-              schema={MemorySettingsSchema.shape.directory}
-              disabled={disabled}
-              onCommit={(value) =>
-                save({ memory: { directory: value } }, 'Vault folder')
-              }
-            />
-          </FieldGrid>
           <SwitchSetting
-            id="memory-watch"
-            label="Watch the vault for changes"
-            description="Re-indexes a file moments after you save it in your own editor."
-            checked={settings.memory.watch}
+            id="memory-enabled"
+            label="Enable memory"
+            description="Run the local memory engine. When off, the assistant won't remember or recall anything."
+            checked={settings.supermemory.enabled}
             disabled={disabled}
             onChange={(next) =>
-              save({ memory: { watch: next } }, 'Vault watching')
+              save({ supermemory: { enabled: next } }, 'Memory engine')
             }
           />
           <SwitchSetting
-            id="memory-index-on-start"
-            label="Index on start"
-            description="Catches anything edited while the app was closed. Costs a few seconds at launch on a large vault."
-            checked={settings.memory.indexOnStart}
+            id="memory-auto-capture"
+            label="Remember automatically"
+            description="Let the assistant save preferences and facts on its own as they come up, not only when asked."
+            checked={settings.supermemory.autoCapture}
             disabled={disabled}
             onChange={(next) =>
-              save({ memory: { indexOnStart: next } }, 'Index on start')
+              save({ supermemory: { autoCapture: next } }, 'Auto-capture')
             }
           />
         </SettingsSection>

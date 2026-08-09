@@ -8,7 +8,7 @@
  * ## Why it borrows the memory parser
  *
  * The vault already ships a small, security-hardened Markdown parser
- * (`features/memory/markdown.ts`) that returns a *structure* rather than an HTML
+ * (`lib/markdown.ts`) that returns a *structure* rather than an HTML
  * string — no `dangerouslySetInnerHTML` anywhere in the path — with URL schemes
  * whitelisted to http/https/mailto, hard caps against pathological input, and,
  * crucially here, graceful handling of half-written Markdown: an unclosed ```
@@ -26,11 +26,7 @@
  */
 import { Fragment, useMemo, type ReactNode } from 'react';
 import { cn } from '../../lib/utils';
-import {
-  parseMarkdown,
-  type Block,
-  type InlineNode,
-} from '../../features/memory/markdown';
+import { parseMarkdown, type Block, type InlineNode } from '../../lib/markdown';
 import { CodeBlock } from './CodeBlock';
 import { mono, textMuted } from './styles';
 

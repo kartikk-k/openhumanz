@@ -19,7 +19,6 @@ import type {
 } from '../../shared/approvals';
 import type { Run, RunEvent, RunStatus } from '../../shared/runs';
 import type { EnvironmentStatus } from '../../shared/engines';
-import type { MemoryIndexStatus } from '../../shared/memory';
 import type { Settings } from '../../shared/settings';
 import type { ChatStreamEvent } from '../../shared/ipc';
 
@@ -47,8 +46,6 @@ export interface AppEvents {
   'schedule:changed': { ids: string[] };
   /** A job's cron fired and its deterministic condition passed. */
   'schedule:due': { jobId: string };
-  'memory:indexed': { status: MemoryIndexStatus };
-  'memory:doc-changed': { path: string; deleted: boolean };
 
   /* environment */
   'settings:changed': { settings: Settings };

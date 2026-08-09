@@ -1,512 +1,365 @@
 /**
- * The memory browser.
+ * Memory.
  *
- * ARCHITECTURE.md, "UI surfaces that matter" #4: *show it as files, because it
- * is files.* So the screen is a file browser first — folder tree, preview,
- * metadata — and a search engine second. The two are joined by provenance:
- * every hit carries its source file, heading breadcrumb and line range, and
- * clicking one opens that file at those lines with them highlighted.
- *
- * Layout, left to right:
- *
- *   ┌─ tree ─────┬─ results ────────┬─ document ─────────────────┐
- *   │ folders    │ ranked chunks,   │ rendered Markdown or raw   │
- *   │ + filter   │ each with        │ text with real line        │
- *   ├────────────┤ provenance       │ numbers, plus metadata     │
- *   │ index      │ (only while a    │                            │
- *   │ status     │  search is live) │                            │
- *   └────────────┴──────────────────┴────────────────────────────┘
- *
- * Routing: `/memory` is a splat owned by this file. The tree, the results and
- * the index panel live on a layout route so they survive navigation between
- * documents; `/memory/doc/<vault path>` selects one, and `?l=12-18&h=…` carries
- * the chunk to highlight. That means a search result is a real place you can go
- * back from.
- *
- * The memory push channels are wired here rather than in `store/bootstrap.ts`,
- * because they are this feature's own: `memoryIndexed` refetches the list and
- * the status, `memoryDocChanged` refetches the open document.
+ * A plain list of what the assistant remembers about you, read straight from the
+ * local memory engine — no indexing, no LLM on this screen, just the data the
+ * server already holds. Search finds specific facts; the default view lists
+ * everything you've saved, newest first. You can add a memory by hand or forget
+ * one.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Navigate,
-  Outlet,
-  Route,
-  Routes,
-  useMatch,
-  useNavigate,
-  useOutletContext,
-} from 'react-router-dom';
-import { FilePlus2, Library, Search, X } from 'lucide-react';
-import { IPC, IPC_PUSH } from '../../../shared/ipc';
-import type { MemoryDoc, MemorySearchHit } from '../../../shared/memory';
-import { ROUTES } from '../../routes';
-import { cn } from '../../lib/utils';
-import { useQuery } from '../../lib/ipc';
-import { formatBytes, formatRelative, pluralize } from '../../lib/format';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Brain, Plus, RefreshCw, Search, Trash2, X } from 'lucide-react';
+import { IPC } from '../../../shared/ipc';
+import type { MemoryItem, MemoryPage } from '../../../shared/supermemory';
 import { PageHeader } from '../../components/layout/PageHeader';
-import { Button, EmptyState, Input, Spinner } from '../../components/ui';
-import { eyebrow, mono, textMuted } from '../../components/ui/styles';
-import { DocumentPane } from './DocumentPane';
-import { IndexStatusPanel } from './IndexStatusPanel';
-import { SearchResults } from './SearchResults';
-import { VaultTree } from './VaultTree';
-import { WriteNoteDialog } from './WriteNoteDialog';
-import { ChannelNotice } from './parts';
-import { basename } from './tree';
-import type { MemoryOutletContext } from './context';
+import {
+  Button,
+  EmptyState,
+  Input,
+  Spinner,
+  textMuted,
+  textSubtle,
+} from '../../components/ui';
+import { useQuery, useMutation } from '../../lib/ipc';
+import { cn } from '../../lib/utils';
+import { formatRelative } from '../../lib/format';
 
-/** How many docs the tree asks for. The schema caps the channel at 1000. */
-const LIST_LIMIT = 1000;
-/** Ranked hits per search. More than this is a scroll, not a result set. */
-const SEARCH_LIMIT = 30;
-/** Typing pause before a search crosses the IPC boundary. */
-const SEARCH_DEBOUNCE_MS = 220;
-
-/* ------------------------------------------------------------------ */
-/* Paths                                                               */
-/* ------------------------------------------------------------------ */
-
-const DOC_PATTERN = `${ROUTES.memory}/doc/*`;
-
-/** Vault path -> route. Encoded per segment so the slashes stay structural. */
-function docRoute(
-  docPath: string,
-  options: { line?: [number, number]; heading?: string } = {},
-): string {
-  const encoded = docPath.split('/').map(encodeURIComponent).join('/');
-  const query = new URLSearchParams();
-  if (options.line) {
-    const [start, end] = options.line;
-    query.set('l', end > start ? `${start}-${end}` : String(start));
-  }
-  if (options.heading) query.set('h', options.heading);
-  const suffix = query.toString();
-  return `${ROUTES.memory}/doc/${encoded}${suffix ? `?${suffix}` : ''}`;
-}
-
-/* ------------------------------------------------------------------ */
-/* Index route: nothing selected                                       */
-/* ------------------------------------------------------------------ */
-
-function RecentNotes({
-  docs,
-  onOpenDoc,
-}: {
-  docs: readonly MemoryDoc[];
-  onOpenDoc: (path: string) => void;
-}) {
-  const recent = useMemo(
-    () =>
-      [...docs]
-        .sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1))
-        .slice(0, 6),
-    [docs],
-  );
-
-  if (recent.length === 0) return null;
-
-  return (
-    <div className="mx-auto mt-8 w-full max-w-md text-left">
-      <p className={cn(eyebrow, 'mb-1.5')}>Recently edited</p>
-      <div className="overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-        {recent.map((doc) => (
-          <button
-            key={doc.path}
-            type="button"
-            onClick={() => onOpenDoc(doc.path)}
-            className="flex w-full items-center gap-3 border-b border-zinc-100 px-3 py-2 text-left transition-colors last:border-b-0 hover:bg-zinc-50 dark:border-zinc-800/70 dark:hover:bg-zinc-800/40"
-          >
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-[12.5px] font-medium text-zinc-800 dark:text-zinc-200">
-                {doc.title || basename(doc.path)}
-              </span>
-              <span
-                className={cn('block truncate text-[11px]', mono, textMuted)}
-              >
-                {doc.path}
-              </span>
-            </span>
-            <span
-              className={cn('shrink-0 text-[11px] tabular-nums', textMuted)}
-            >
-              {formatRelative(doc.updatedAt)}
-            </span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-/** The right-hand pane before anything is selected. */
-function NoSelection() {
-  const context = useOutletContext<MemoryOutletContext>();
-  const { docs, vaultPath, listError, onRetry, onCreate, onOpenDoc } = context;
-
-  const totalBytes = docs.reduce((sum, doc) => sum + doc.sizeBytes, 0);
-
-  // "Could not ask" is not "there is nothing there".
-  if (listError && docs.length === 0) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <ChannelNotice error={listError} what="the vault" onRetry={onRetry} />
-      </div>
-    );
-  }
-
-  if (docs.length === 0) {
-    return (
-      <div className="flex h-full items-start justify-center overflow-y-auto py-16">
-        <EmptyState
-          icon={Library}
-          title="The vault is empty"
-          description={
-            <>
-              Memory is Markdown files in{' '}
-              <span className={mono}>{vaultPath || '~/.assistant/memory'}</span>
-              . Write the first note here, or drop{' '}
-              <span className={mono}>.md</span> files into that folder and
-              reindex — the assistant will find them either way.
-            </>
-          }
-          action={
-            <Button variant="primary" icon={FilePlus2} onClick={onCreate}>
-              New note
-            </Button>
-          }
-          footer="Nothing is stored anywhere but that directory."
-        />
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex h-full items-start justify-center overflow-y-auto py-14">
-      <div className="w-full max-w-md px-6">
-        <EmptyState
-          icon={Library}
-          title="Pick a note, or search the vault"
-          description={
-            <>
-              {pluralize(docs.length, 'document')} · {formatBytes(totalBytes)}{' '}
-              of Markdown. Search returns chunks, each with the file, heading
-              and line range it came from.
-            </>
-          }
-        />
-        <RecentNotes docs={docs} onOpenDoc={onOpenDoc} />
-      </div>
-    </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* Layout route                                                        */
-/* ------------------------------------------------------------------ */
-
-interface WriteState {
-  open: boolean;
-  mode: 'create' | 'edit';
-  path: string;
-  content: string;
-}
-
-const CLOSED_WRITE: WriteState = {
-  open: false,
-  mode: 'create',
-  path: '',
-  content: '',
+const EMPTY_PAGE: MemoryPage = {
+  items: [],
+  total: 0,
+  page: 1,
+  totalPages: 0,
+  ready: false,
 };
 
-function MemoryLayout() {
-  const navigate = useNavigate();
-  const match = useMatch(DOC_PATTERN);
-  const selectedPath = match?.params['*'] ?? null;
+/** A debounced value — the search box shouldn't fire a request per keystroke. */
+function useDebounced<T>(value: T, ms: number): T {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), ms);
+    return () => clearTimeout(t);
+  }, [value, ms]);
+  return debounced;
+}
 
-  const [query, setQuery] = useState('');
-  const [debounced, setDebounced] = useState('');
-  const [activeChunkId, setActiveChunkId] = useState<string | null>(null);
-  const [write, setWrite] = useState<WriteState>(CLOSED_WRITE);
-  const searchRef = useRef<HTMLInputElement>(null);
+export function MemoryScreen() {
+  const [rawQuery, setRawQuery] = useState('');
+  const query = useDebounced(rawQuery.trim(), 250);
+  const searching = query.length > 0;
 
-  /* ---------------- queries ---------------- */
-
-  const status = useQuery(
-    IPC.memory.status,
-    {},
-    { refetchOn: [IPC_PUSH.memoryIndexed] },
-  );
+  const status = useQuery(IPC.memory.status, {}, { pollMs: 5000 });
+  const ready = status.data?.ready ?? false;
+  const enabled = status.data?.enabled ?? true;
 
   const list = useQuery(
     IPC.memory.list,
-    { limit: LIST_LIMIT },
-    { refetchOn: [IPC_PUSH.memoryIndexed, IPC_PUSH.memoryDocChanged] },
+    { page: 1, limit: 100 },
+    {
+      enabled: ready && !searching,
+    },
   );
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebounced(query), SEARCH_DEBOUNCE_MS);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  const searching = debounced.trim().length > 0;
   const search = useQuery(
     IPC.memory.search,
-    { query: debounced.trim(), limit: SEARCH_LIMIT },
-    { enabled: searching, refetchOn: [IPC_PUSH.memoryIndexed] },
+    { query, limit: 30 },
+    { enabled: ready && searching },
   );
 
-  const docs = useMemo(() => list.data?.items ?? [], [list.data]);
-  const vaultPath = status.data?.vaultPath ?? '';
+  const active = searching ? search : list;
+  const page: MemoryPage = active.data ?? EMPTY_PAGE;
 
-  /* ---------------- navigation ---------------- */
-
-  const openDoc = useCallback(
-    (docPath: string) => {
-      setActiveChunkId(null);
-      navigate(docRoute(docPath));
-    },
-    [navigate],
-  );
-
-  const openHit = useCallback(
-    (hit: MemorySearchHit) => {
-      setActiveChunkId(hit.chunk.id);
-      navigate(
-        docRoute(hit.chunk.docPath, {
-          line: [hit.chunk.startLine, hit.chunk.endLine],
-          heading: hit.chunk.heading,
-        }),
-      );
-    },
-    [navigate],
-  );
-
-  /* ---------------- write dialog ---------------- */
-
-  const onCreate = useCallback(() => {
-    setWrite({ open: true, mode: 'create', path: '', content: '' });
-  }, []);
-
-  const onEdit = useCallback((docPath: string, content: string) => {
-    setWrite({ open: true, mode: 'edit', path: docPath, content });
-  }, []);
-
-  const onWritten = useCallback(
-    (doc: MemoryDoc) => {
+  const forget = useMutation(IPC.memory.forget, {
+    onSuccess: () => {
       void list.refetch();
-      void status.refetch();
-      navigate(docRoute(doc.path));
+      if (searching) void search.refetch();
     },
-    [list, status, navigate],
-  );
+  });
+  const retry = useMutation(IPC.memory.retry, {
+    onSuccess: () => {
+      // The retry re-adds the content as a new document; refresh to show it.
+      void list.refetch();
+    },
+  });
 
-  /* ---------------- keyboard ---------------- */
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      const target = event.target as HTMLElement | null;
-      const typing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable === true;
-
-      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'f') {
-        event.preventDefault();
-        searchRef.current?.focus();
-        searchRef.current?.select();
-        return;
-      }
-      if (event.key === '/' && !typing && !event.metaKey && !event.ctrlKey) {
-        event.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
-
-  /* ---------------- context for child routes ---------------- */
-
-  const onRetry = useCallback(() => {
-    void list.refetch();
+  const refetchAll = (): void => {
     void status.refetch();
-    // `list` and `status` are recreated every render; the refetch closures they
-    // carry are the stable part, so depending on them here is deliberate.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [list.refetch, status.refetch]);
-
-  const context = useMemo<MemoryOutletContext>(
-    () => ({
-      vaultPath,
-      docs,
-      listError: list.error,
-      searchQuery: searching ? debounced : '',
-      onRetry,
-      onEdit,
-      onCreate,
-      onOpenDoc: openDoc,
-    }),
-    [
-      vaultPath,
-      docs,
-      list.error,
-      searching,
-      debounced,
-      onRetry,
-      onEdit,
-      onCreate,
-      openDoc,
-    ],
-  );
-
-  const existingPaths = useMemo(() => docs.map((doc) => doc.path), [docs]);
+    void list.refetch();
+    if (searching) void search.refetch();
+  };
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <PageHeader
-        sticky={false}
         title="Memory"
-        description="The vault, as files — because it is files."
-        actions={
-          <Button
-            variant="primary"
-            size="sm"
-            icon={FilePlus2}
-            onClick={onCreate}
-          >
-            New note
-          </Button>
-        }
+        description="What the assistant remembers about you — kept on this machine."
+        actions={<AddMemory onAdded={refetchAll} disabled={!ready} />}
         toolbar={
-          <Input
-            ref={searchRef}
-            size="sm"
-            icon={Search}
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === 'Escape' && query) {
-                event.stopPropagation();
-                setQuery('');
-              }
-            }}
-            placeholder="Search the vault — full text over every chunk"
-            aria-label="Search memory"
-            trailing={
-              // eslint-disable-next-line no-nested-ternary
-              search.fetching ? (
-                <Spinner size="xs" label="Searching" />
-              ) : query ? (
-                <Button
-                  size="icon-sm"
-                  variant="ghost"
-                  icon={X}
-                  aria-label="Clear search"
-                  className="h-5 w-5"
-                  onClick={() => setQuery('')}
-                />
-              ) : (
-                <kbd
-                  className={cn(
-                    'rounded border border-zinc-200 px-1 text-[10px] dark:border-zinc-700',
-                    textMuted,
-                  )}
-                >
-                  /
-                </kbd>
-              )
-            }
-          />
+          <div className="relative w-full max-w-md">
+            <Search
+              size={15}
+              aria-hidden
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400"
+            />
+            <Input
+              value={rawQuery}
+              onChange={(e) => setRawQuery(e.target.value)}
+              placeholder="Search memories…"
+              className="pl-9 pr-9"
+              aria-label="Search memories"
+            />
+            {rawQuery ? (
+              <button
+                type="button"
+                onClick={() => setRawQuery('')}
+                aria-label="Clear search"
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300"
+              >
+                <X size={15} />
+              </button>
+            ) : null}
+          </div>
         }
       />
 
-      {list.error ? (
-        <ChannelNotice
-          variant="inline"
-          error={list.error}
-          what="the vault"
-          onRetry={onRetry}
-        />
-      ) : null}
-
-      <div className="flex min-h-0 flex-1">
-        <aside className="flex w-64 shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
-          {list.loading ? (
-            <div className="flex flex-1 items-center justify-center">
-              <Spinner size="sm" label="Loading the vault" />
-            </div>
-          ) : (
-            <VaultTree
-              className="flex-1"
-              docs={docs}
-              selectedPath={selectedPath}
-              onSelect={openDoc}
-            />
-          )}
-          <IndexStatusPanel
-            status={status.data}
-            error={status.error}
-            onReindexed={onRetry}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto max-w-3xl px-5 py-5">
+          <MemoryBody
+            enabled={enabled}
+            ready={ready}
+            loading={active.loading}
+            searching={searching}
+            items={page.items}
+            retrying={retry.pending}
+            onForget={(id) => {
+              void forget.mutate({ id });
+            }}
+            onRetry={(id) => {
+              void retry.mutate({ id });
+            }}
           />
-        </aside>
-
-        {searching ? (
-          <aside className="flex w-[21rem] shrink-0 flex-col border-r border-zinc-200 dark:border-zinc-800">
-            <SearchResults
-              className="flex-1"
-              query={debounced}
-              hits={search.data}
-              loading={search.loading}
-              error={search.error}
-              activeChunkId={activeChunkId}
-              onOpen={openHit}
-              onRetry={() => {
-                void search.refetch();
-              }}
-            />
-          </aside>
-        ) : null}
-
-        <section className="min-w-0 flex-1">
-          <Outlet context={context} />
-        </section>
+        </div>
       </div>
-
-      <WriteNoteDialog
-        open={write.open}
-        mode={write.mode}
-        initialPath={write.path}
-        initialContent={write.content}
-        vaultPath={vaultPath}
-        existingPaths={existingPaths}
-        onClose={() => setWrite(CLOSED_WRITE)}
-        onWritten={onWritten}
-      />
     </div>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Route table                                                         */
-/* ------------------------------------------------------------------ */
+function MemoryBody({
+  enabled,
+  ready,
+  loading,
+  searching,
+  items,
+  retrying,
+  onForget,
+  onRetry,
+}: {
+  enabled: boolean;
+  ready: boolean;
+  loading: boolean;
+  searching: boolean;
+  items: MemoryItem[];
+  retrying: boolean;
+  onForget: (id: string) => void;
+  onRetry: (id: string) => void;
+}) {
+  if (!enabled) {
+    return (
+      <EmptyState
+        icon={Brain}
+        title="Memory is turned off"
+        description="Turn it on in Settings → Memory to let the assistant remember things about you."
+      />
+    );
+  }
+  if (!ready) {
+    return (
+      <div className={cn('flex items-center gap-2 py-10', textMuted)}>
+        <Spinner size="sm" label={null} />
+        Starting the memory engine… this can take a moment on first launch.
+      </div>
+    );
+  }
+  if (loading) {
+    return (
+      <div className={cn('flex items-center gap-2 py-10', textMuted)}>
+        <Spinner size="sm" label={null} />
+        Loading…
+      </div>
+    );
+  }
+  if (items.length === 0) {
+    return searching ? (
+      <EmptyState
+        icon={Search}
+        title="No matching memories"
+        description="Nothing remembered matches that search yet."
+      />
+    ) : (
+      <EmptyState
+        icon={Brain}
+        title="Nothing remembered yet"
+        description="As you chat, the assistant will save preferences and facts about you here. You can also add one yourself."
+      />
+    );
+  }
 
-/**
- * Owns `/memory` and everything under it.
- *
- * `MemoryLayout` is a pathless layout route, so the tree, the search results
- * and the index panel are mounted once and stay mounted while the document
- * pane changes underneath them.
- */
-export function MemoryScreen() {
   return (
-    <Routes>
-      <Route element={<MemoryLayout />}>
-        <Route index element={<NoSelection />} />
-        <Route path="doc/*" element={<DocumentPane />} />
-        <Route path="*" element={<Navigate to={ROUTES.memory} replace />} />
-      </Route>
-    </Routes>
+    <ul className="flex flex-col gap-2">
+      {items.map((item) => (
+        <MemoryRow
+          key={item.id}
+          item={item}
+          retrying={retrying}
+          onForget={onForget}
+          onRetry={onRetry}
+        />
+      ))}
+    </ul>
+  );
+}
+
+function MemoryRow({
+  item,
+  retrying,
+  onForget,
+  onRetry,
+}: {
+  item: MemoryItem;
+  retrying: boolean;
+  onForget: (id: string) => void;
+  onRetry: (id: string) => void;
+}) {
+  const failed = item.status === 'failed';
+  const processing =
+    item.status !== 'done' && item.status !== 'unknown' && !failed;
+  return (
+    <li className="group flex items-start gap-3 rounded-lg border border-zinc-200 bg-white px-4 py-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <div className="min-w-0 flex-1">
+        <p className="text-[13.5px] leading-relaxed text-zinc-800 dark:text-zinc-100">
+          {item.memory || <span className={textMuted}>(empty)</span>}
+        </p>
+        <div
+          className={cn(
+            'mt-1 flex items-center gap-2 text-[11.5px]',
+            textSubtle,
+          )}
+        >
+          {item.createdAt ? (
+            <span>{formatRelative(item.createdAt, Date.now())}</span>
+          ) : null}
+          {failed ? (
+            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10.5px] font-medium text-rose-700 dark:bg-rose-500/15 dark:text-rose-400">
+              failed
+            </span>
+          ) : null}
+          {processing ? (
+            <span className="rounded-full bg-amber-100 px-1.5 py-0.5 text-[10.5px] font-medium text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+              processing
+            </span>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-0.5 flex shrink-0 items-center gap-1">
+        {failed ? (
+          <button
+            type="button"
+            onClick={() => onRetry(item.id)}
+            disabled={retrying}
+            aria-label="Retry this memory"
+            title="Retry extraction"
+            className="rounded p-1 text-zinc-400 transition hover:bg-indigo-50 hover:text-indigo-600 disabled:opacity-50 dark:hover:bg-indigo-500/10 dark:hover:text-indigo-400"
+          >
+            <RefreshCw size={15} className={retrying ? 'animate-spin' : ''} />
+          </button>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => onForget(item.id)}
+          aria-label="Forget this memory"
+          className="rounded p-1 text-zinc-400 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 focus:opacity-100 group-hover:opacity-100 dark:hover:bg-rose-500/10 dark:hover:text-rose-400"
+        >
+          <Trash2 size={15} />
+        </button>
+      </div>
+    </li>
+  );
+}
+
+function AddMemory({
+  onAdded,
+  disabled,
+}: {
+  onAdded: () => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [text, setText] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const add = useMutation(IPC.memory.add, {
+    onSuccess: () => {
+      setText('');
+      setOpen(false);
+      onAdded();
+    },
+  });
+
+  useEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
+
+  const submit = (): void => {
+    const content = text.trim();
+    if (content) void add.mutate({ content });
+  };
+
+  const canAdd = useMemo(() => text.trim().length > 0, [text]);
+
+  if (!open) {
+    return (
+      <Button
+        size="sm"
+        variant="secondary"
+        icon={Plus}
+        disabled={disabled}
+        onClick={() => setOpen(true)}
+      >
+        Add memory
+      </Button>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <Input
+        ref={inputRef}
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') submit();
+          if (e.key === 'Escape') setOpen(false);
+        }}
+        placeholder="Something to remember…"
+        className="w-64"
+      />
+      <Button
+        size="sm"
+        variant="primary"
+        loading={add.pending}
+        disabled={!canAdd}
+        onClick={submit}
+      >
+        Save
+      </Button>
+      <Button
+        size="sm"
+        variant="ghost"
+        onClick={() => {
+          setOpen(false);
+          setText('');
+        }}
+      >
+        Cancel
+      </Button>
+    </div>
   );
 }
 

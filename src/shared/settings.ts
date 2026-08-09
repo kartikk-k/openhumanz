@@ -46,15 +46,6 @@ export const ApprovalSettingsSchema = z.object({
 });
 export type ApprovalSettings = z.infer<typeof ApprovalSettingsSchema>;
 
-export const MemorySettingsSchema = z.object({
-  indexOnStart: z.boolean().default(true),
-  /** Watch the vault with chokidar and re-index changed files. */
-  watch: z.boolean().default(true),
-  /** Vault directory relative to the workspace root. */
-  directory: z.string().default('memory'),
-});
-export type MemorySettings = z.infer<typeof MemorySettingsSchema>;
-
 export const ScheduleSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   /** IANA timezone used when a job does not carry its own. */
@@ -131,7 +122,6 @@ export const SettingsSchema = z.object({
   workspaceRoot: z.string().default(''),
   engine: EngineSettingsSchema.prefault({}),
   approvals: ApprovalSettingsSchema.prefault({}),
-  memory: MemorySettingsSchema.prefault({}),
   schedule: ScheduleSettingsSchema.prefault({}),
   ui: UiSettingsSchema.prefault({}),
   notifications: NotificationSettingsSchema.prefault({}),
@@ -160,7 +150,6 @@ export const SettingsPatchSchema = z.object({
   workspaceRoot: z.string().optional(),
   engine: patchSchema(EngineSettingsSchema).optional(),
   approvals: patchSchema(ApprovalSettingsSchema).optional(),
-  memory: patchSchema(MemorySettingsSchema).optional(),
   schedule: patchSchema(ScheduleSettingsSchema).optional(),
   ui: patchSchema(UiSettingsSchema).optional(),
   notifications: patchSchema(NotificationSettingsSchema).optional(),

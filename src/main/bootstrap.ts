@@ -46,7 +46,6 @@ import approvalsModule, { getApprovalGate } from './modules/approvals';
 import runsAppModule, { configureRuns, getRunStore } from './modules/runs';
 import tasksModule from './modules/tasks';
 import goalsModule from './modules/goals';
-import memoryModule from './modules/memory';
 import { createScheduleModule } from './modules/schedule';
 import settingsAppModule, {
   configureSettings,
@@ -162,12 +161,6 @@ function bridgeEventsToRenderer(): void {
   appEvents.on('schedule:changed', (payload) =>
     send(IPC_PUSH.scheduleChanged, payload),
   );
-  appEvents.on('memory:indexed', ({ status }) =>
-    send(IPC_PUSH.memoryIndexed, { status }),
-  );
-  appEvents.on('memory:doc-changed', (payload) =>
-    send(IPC_PUSH.memoryDocChanged, payload),
-  );
   appEvents.on('settings:changed', ({ settings }) =>
     send(IPC_PUSH.settingsChanged, { settings }),
   );
@@ -217,7 +210,6 @@ export async function bootstrap(): Promise<AppServices> {
       runsAppModule,
       tasksModule,
       goalsModule,
-      memoryModule,
       scheduleModule,
       settingsAppModule,
       macosAppModule,

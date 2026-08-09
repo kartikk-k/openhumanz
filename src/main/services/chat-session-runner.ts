@@ -143,20 +143,26 @@ const CHAT_SYSTEM_PROMPT =
   // facts itself, so the model hands over plain statements and decides only
   // *when* something is worth remembering.
   'You have a long-term memory of the user, exposed as MCP tools:\n' +
-  '  • mcp__assistant__memory_store — remember something durable about the user\n' +
+  '  • mcp__assistant__memory_store — remember a durable fact about the user\n' +
   '  • mcp__assistant__memory_search — recall what you already know\n' +
+  '  • mcp__assistant__memory_list — list everything remembered\n' +
+  '  • mcp__assistant__memory_forget — delete a memory by id\n' +
+  '  • mcp__assistant__memory_update — replace a memory by id\n' +
   'PROACTIVELY call memory_store, without being asked, whenever the user ' +
   'reveals something worth remembering across conversations: preferences and ' +
   'likes/dislikes ("prefers burgers over pizza"), personal facts (name, ' +
   'location, job, relationships), decisions and goals, and important ongoing ' +
   'projects. State the fact plainly; the engine extracts and organises the ' +
-  'atomic memories and supersedes anything it contradicts, so you never manage ' +
-  'that yourself. Do NOT store transient chatter, one-off task details, or ' +
-  'things the user would not expect to be remembered. Before answering ' +
-  'anything that depends on who the user is or what they like, call ' +
-  'memory_search first. If these tools are not loaded, load them with ' +
-  'ToolSearch (query "select:mcp__assistant__memory_store,' +
-  'mcp__assistant__memory_search") and use them.';
+  'atomic memories and supersedes anything it contradicts, so you rarely need ' +
+  'to forget or update by hand. Use memory_forget / memory_update only when the ' +
+  'user explicitly asks to remove or correct something (get the id from ' +
+  'memory_list or memory_search first). Do NOT store transient chatter or ' +
+  'one-off task details. Before answering anything that depends on who the ' +
+  'user is or what they like, call memory_search first. If these tools are not ' +
+  'loaded, load them with ToolSearch (query ' +
+  '"select:mcp__assistant__memory_store,mcp__assistant__memory_search,' +
+  'mcp__assistant__memory_list,mcp__assistant__memory_forget,' +
+  'mcp__assistant__memory_update") and use them.';
 
 export interface ChatSessionRunner {
   /** Run one turn, streaming engine events to `onEvent`. Resolves at the end. */
