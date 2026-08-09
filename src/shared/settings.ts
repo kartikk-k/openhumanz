@@ -104,6 +104,21 @@ export const ComposioSettingsSchema = z.object({
 export type ComposioSettings = z.infer<typeof ComposioSettingsSchema>;
 
 /**
+ * The memory engine (supermemory). Memories, embeddings and the vector store all
+ * live on-device; fact extraction runs through the user's own Claude via a local
+ * shim, so nothing needs an external key. These control the local server.
+ */
+export const SupermemorySettingsSchema = z.object({
+  /** Run the local supermemory server. When false, memory tools are inert. */
+  enabled: z.boolean().default(true),
+  /** Extract memories from chat automatically, not just on explicit request. */
+  autoCapture: z.boolean().default(true),
+  /** Port the local server listens on. */
+  port: z.number().int().positive().default(8787),
+});
+export type SupermemorySettings = z.infer<typeof SupermemorySettingsSchema>;
+
+/**
  * Note on `.prefault({})` rather than `.default({})`:
  * in zod v4 `.default()` takes the schema's *output* type, so a nested object
  * whose every leaf has a default still cannot be defaulted from `{}` — the
@@ -122,6 +137,7 @@ export const SettingsSchema = z.object({
   notifications: NotificationSettingsSchema.prefault({}),
   logging: LoggingSettingsSchema.prefault({}),
   composio: ComposioSettingsSchema.prefault({}),
+  supermemory: SupermemorySettingsSchema.prefault({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The shape you may hand to `SettingsSchema.parse` — everything optional. */
@@ -150,6 +166,7 @@ export const SettingsPatchSchema = z.object({
   notifications: patchSchema(NotificationSettingsSchema).optional(),
   logging: patchSchema(LoggingSettingsSchema).optional(),
   composio: patchSchema(ComposioSettingsSchema).optional(),
+  supermemory: patchSchema(SupermemorySettingsSchema).optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

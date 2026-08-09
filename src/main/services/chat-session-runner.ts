@@ -136,7 +136,27 @@ const CHAT_SYSTEM_PROMPT =
   'once the turn ends) and do NOT use TaskCreate/TaskUpdate for reminders ' +
   '(those only track work within this session). If a schedule tool call is ' +
   'ever blocked or missing, say so plainly rather than substituting a ' +
-  'session-only alternative.';
+  'session-only alternative.\n\n' +
+  // Memory: proactive capture + recall. The user wants the assistant to build a
+  // memory of them over time without being asked — preferences, facts, and
+  // decisions — and to use it. The engine extracts and de-duplicates the atomic
+  // facts itself, so the model hands over plain statements and decides only
+  // *when* something is worth remembering.
+  'You have a long-term memory of the user, exposed as MCP tools:\n' +
+  '  • mcp__assistant__memory_store — remember something durable about the user\n' +
+  '  • mcp__assistant__memory_search — recall what you already know\n' +
+  'PROACTIVELY call memory_store, without being asked, whenever the user ' +
+  'reveals something worth remembering across conversations: preferences and ' +
+  'likes/dislikes ("prefers burgers over pizza"), personal facts (name, ' +
+  'location, job, relationships), decisions and goals, and important ongoing ' +
+  'projects. State the fact plainly; the engine extracts and organises the ' +
+  'atomic memories and supersedes anything it contradicts, so you never manage ' +
+  'that yourself. Do NOT store transient chatter, one-off task details, or ' +
+  'things the user would not expect to be remembered. Before answering ' +
+  'anything that depends on who the user is or what they like, call ' +
+  'memory_search first. If these tools are not loaded, load them with ' +
+  'ToolSearch (query "select:mcp__assistant__memory_store,' +
+  'mcp__assistant__memory_search") and use them.';
 
 export interface ChatSessionRunner {
   /** Run one turn, streaming engine events to `onEvent`. Resolves at the end. */

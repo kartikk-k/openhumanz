@@ -55,6 +55,7 @@ import settingsAppModule, {
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
 import { createComposioModule } from './modules/composio';
+import { createSupermemoryModule } from './modules/supermemory';
 import { createChatModule } from './modules/chat';
 import { createChatSessionRunner } from './services/chat-session-runner';
 import { CLAUDE_CODE_ENGINE_ID } from './services/engines/claude-code';
@@ -205,6 +206,11 @@ export async function bootstrap(): Promise<AppServices> {
   // browser open uses electron's shell.
   const composioModule = createComposioModule();
 
+  // Supermemory: the memory engine. Runs a local server (on-device vector store
+  // + embeddings) whose fact extraction is routed to the user's own Claude via a
+  // local shim — no external key. Owns the agent's memory_store / memory_search.
+  const supermemoryModule = createSupermemoryModule();
+
   const registry = createRegistry({
     modules: [
       approvalsModule,
@@ -217,6 +223,7 @@ export async function bootstrap(): Promise<AppServices> {
       macosAppModule,
       createDialogModule(),
       composioModule,
+      supermemoryModule,
       chatModule,
     ],
     db,
@@ -365,6 +372,19 @@ export async function bootstrap(): Promise<AppServices> {
   appEvents.on('composio:connections-changed', () => {
     void composioModule.refreshTools();
   });
+
+  // Supermemory: honour the user's settings. The module already started with
+  // safe defaults (enabled, default port) so the common case is live; here we
+  // shut it down if the user has turned the memory engine off.
+  getSettingsStore()
+    .get()
+    .then(async (settings) => {
+      const sm = settings.supermemory;
+      supermemoryModule.configure({ enabled: sm?.enabled, port: sm?.port });
+      if (sm?.enabled === false) await supermemoryModule.stop?.();
+      return undefined;
+    })
+    .catch(() => {});
 
   logger.info('ready', { tools: registry.tools().length });
 

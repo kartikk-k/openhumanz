@@ -22,7 +22,6 @@ import { defineModule, type ModuleContext } from '../types';
 import { MemoryIndexer } from './indexer';
 import { migrations } from './store';
 import { MemoryWatcher } from './watcher';
-import { createMemoryTools } from './tools';
 
 /* ------------------------------------------------------------------ */
 /* Module state                                                        */
@@ -57,7 +56,11 @@ export function getMemoryIndexer(): MemoryIndexer | null {
 export default defineModule({
   id: 'memory',
   migrations,
-  tools: createMemoryTools(requireIndexer),
+  // The agent's memory tools moved to the `supermemory` module (on-device
+  // vector store + Claude-backed extraction). This module now owns only the
+  // human-facing file-vault browser and its `memory:*` IPC — no agent tools,
+  // so there's no name collision with `supermemory`'s `memory_store` /
+  // `memory_search`.
 
   ipc: {
     'memory:search': (request) => requireIndexer().search(request),

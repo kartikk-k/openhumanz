@@ -44,7 +44,8 @@
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
     "test": "jest",
-    "approval:check": "bun ./.erb/scripts/approval-flow-check.mjs"
+    "approval:check": "bun ./.erb/scripts/approval-flow-check.mjs",
+    "memory:check": "bun ./.erb/scripts/memory-check.mjs"
   },
   "browserslist": [
     "extends browserslist-config-erb"
