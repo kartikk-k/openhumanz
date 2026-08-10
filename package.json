@@ -34,12 +34,13 @@
     "mcp:inspect": "bun ./.erb/scripts/mcp-inspect.mjs",
     "composio:check": "bun ./.erb/scripts/composio-check.mjs",
     "postinstall": "cd release/app && bun install && cd ../.. && bun run build:dll",
+    "prepare": "git config core.hooksPath .githooks || true",
     "lint": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx",
     "lint:fix": "cross-env NODE_ENV=development eslint . --ext .js,.jsx,.ts,.tsx --fix",
     "package": "bun ./.erb/scripts/clean.js dist && bun run build && electron-builder build --publish never && bun run build:dll",
     "rebuild": "electron-rebuild --parallel --types prod,dev,optional --module-dir release/app",
     "prestart": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.main.dev.ts",
-    "start": "bun ./.erb/scripts/check-port-in-use.js && bun run prestart && bun run start:renderer",
+    "start": "bash scripts/dev-mic-entitlement.sh && bun ./.erb/scripts/check-port-in-use.js && bun run prestart && bun run start:renderer",
     "start:main": "concurrently -k -P \"cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true webpack --watch --config ./.erb/configs/webpack.config.main.dev.ts\" \"electronmon . -- {@}\" --",
     "start:preload": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack --config ./.erb/configs/webpack.config.preload.dev.ts",
     "start:renderer": "cross-env NODE_ENV=development TS_NODE_TRANSPILE_ONLY=true NODE_OPTIONS=\"-r ts-node/register --no-warnings\" webpack serve --config ./.erb/configs/webpack.config.renderer.dev.ts",
@@ -217,7 +218,10 @@
       "hardenedRuntime": true,
       "entitlements": "assets/entitlements.mac.plist",
       "entitlementsInherit": "assets/entitlements.mac.plist",
-      "gatekeeperAssess": false
+      "gatekeeperAssess": false,
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "The assistant uses your microphone while you hold Space to listen to your voice."
+      }
     },
     "dmg": {
       "contents": [

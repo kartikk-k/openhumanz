@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+#
+# Pre-commit hook:
+#   1. Format staged files with Prettier (in place, re-staged).
+#   2. Auto-fix staged JS/TS files with ESLint (--fix, re-staged).
+#   3. BLOCK the commit if any ESLint errors remain.
+#
+# Only staged files are touched. Enabled via `git config core.hooksPath
+# .githooks` — the "prepare" script in package.json sets this up on install.
+set -euo pipefail
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+[ -z "$STAGED" ] && exit 0
+
+# ── resolve binaries (prefer local install) ──────────────────────────
+if [ -x "node_modules/.bin/prettier" ]; then PRETTIER="node_modules/.bin/prettier";
+elif command -v prettier >/dev/null 2>&1; then PRETTIER="prettier";
+else PRETTIER=""; fi
+
+if [ -x "node_modules/.bin/eslint" ]; then ESLINT="node_modules/.bin/eslint";
+elif command -v eslint >/dev/null 2>&1; then ESLINT="eslint";
+else ESLINT=""; fi
+
+# ── split staged files into "prettier can format" and "eslint should lint" ──
+PRETTIER_FILES=()
+ESLINT_FILES=()
+while IFS= read -r f; do
+  [ -f "$f" ] || continue
+  case "$f" in
+    *.js|*.jsx|*.ts|*.tsx|*.mjs|*.cjs) ESLINT_FILES+=("$f") ;;
+  esac
+  if [ -n "$PRETTIER" ]; then
+    info=$("$PRETTIER" --file-info "$f" 2>/dev/null || true)
+    if echo "$info" | grep -q '"ignored": false' \
+       && ! echo "$info" | grep -q '"inferredParser": null'; then
+      PRETTIER_FILES+=("$f")
+    fi
+  fi
+done <<< "$STAGED"
+
+# ── 1. Prettier format ───────────────────────────────────────────────
+if [ -n "$PRETTIER" ] && [ ${#PRETTIER_FILES[@]} -gt 0 ]; then
+  echo "pre-commit: formatting ${#PRETTIER_FILES[@]} file(s) with Prettier…"
+  "$PRETTIER" --write "${PRETTIER_FILES[@]}" >/dev/null
+  git add -- "${PRETTIER_FILES[@]}"
+fi
+
+# ── 2 + 3. ESLint auto-fix, then hard-check ──────────────────────────
+if [ -n "$ESLINT" ] && [ ${#ESLINT_FILES[@]} -gt 0 ]; then
+  echo "pre-commit: linting ${#ESLINT_FILES[@]} file(s) with ESLint…"
+
+  # auto-fix what can be fixed, re-stage the fixes
+  NODE_ENV=development "$ESLINT" --fix "${ESLINT_FILES[@]}" >/dev/null 2>&1 || true
+  git add -- "${ESLINT_FILES[@]}"
+
+  # hard gate: fail the commit if any errors remain (warnings are allowed).
+  if ! NODE_ENV=development "$ESLINT" --max-warnings=-1 "${ESLINT_FILES[@]}"; then
+    echo ""
+    echo "✖ pre-commit: ESLint errors remain — commit aborted."
+    echo "  Fix the errors above (or run 'bun run lint:fix'), then commit again."
+    exit 1
+  fi
+elif [ -z "$ESLINT" ]; then
+  echo "pre-commit: eslint not found, skipping lint gate." >&2
+fi
+
+exit 0
