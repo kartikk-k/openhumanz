@@ -17,13 +17,12 @@
   "typescript.format.enable": false,
 
   // ── Formatting ──────────────────────────────────────────────
-  // Prettier is the formatter; ESLint auto-fixes lint rules on save.
-  // Both extensions are recommended in extensions.json.
+  // Manual only: nothing runs on save. "Format Document" uses Prettier for
+  // most files; for .tsx it uses ESLint, which runs Prettier + Tailwind class
+  // sorting as a rule (plugin:prettier/recommended in .eslintrc.js).
   "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": "explicit"
-  },
+  "editor.formatOnSave": false,
+  "editor.codeActionsOnSave": {},
   "eslint.format.enable": true,
   "prettier.requireConfig": true,
 
@@ -31,7 +30,7 @@
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
   "[typescriptreact]": {
-    "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "editor.defaultFormatter": "dbaeumer.vscode-eslint"
   },
   "[javascript]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"

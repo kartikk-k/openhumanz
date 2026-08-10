@@ -50,7 +50,12 @@ function crossModuleZones() {
 }
 
 module.exports = {
-  extends: 'erb',
+  // `erb` brings the base rules; `prettier` (config) turns off any stylistic
+  // rules that would fight Prettier; `plugin:prettier/recommended` runs Prettier
+  // AS an ESLint rule (with the Tailwind class-sort plugin picked up from the
+  // Prettier config), so `eslint --fix` — and the ESLint "Format Document" /
+  // fixAll-on-save — apply Prettier formatting and sort Tailwind classes.
+  extends: ['erb', 'plugin:prettier/recommended'],
   /**
    * Pinned explicitly. `eslint-config-erb` carries its own nested
    * `@typescript-eslint/parser@6`, which emits the pre-v8 AST for mapped types

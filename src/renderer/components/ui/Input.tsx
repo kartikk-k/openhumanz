@@ -76,7 +76,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
               'w-full rounded-md border bg-white text-zinc-900 transition-colors',
               'placeholder:text-zinc-400 dark:placeholder:text-zinc-600',
               'dark:bg-zinc-950 dark:text-zinc-100',
-              'focus:outline-none focus:ring-2 focus:ring-indigo-500/60 focus:border-indigo-500',
+              'focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/60',
               'disabled:cursor-not-allowed disabled:bg-zinc-50 disabled:text-zinc-500 dark:disabled:bg-zinc-900',
               size === 'sm' ? 'h-7 text-xs' : 'h-8 text-[13px]',
               Icon ? 'pl-8' : 'pl-2.5',

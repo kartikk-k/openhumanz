@@ -80,7 +80,7 @@ export function HomeScreen() {
       <button
         type="button"
         onClick={() => navigate(ROUTES.chat)}
-        className="absolute hidden right-4 top-4 z-20 rounded-md border border-zinc-200 bg-white/80 px-2.5 py-1 text-[12px] text-zinc-500 backdrop-blur transition hover:text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/80 dark:hover:text-zinc-200"
+        className="absolute right-4 top-4 z-20 hidden rounded-md border border-zinc-200 bg-white/80 px-2.5 py-1 text-[12px] text-zinc-500 backdrop-blur transition hover:text-zinc-800 dark:border-zinc-800 dark:bg-zinc-900/80 dark:hover:text-zinc-200"
       >
         ← Back to app
       </button>
@@ -111,14 +111,14 @@ export function HomeScreen() {
           <MicHint status={micStatus} listening={listening} />
 
           {/* State toggle to preview the reactive animation */}
-          <div className="mt-6 flex gap-2 fixed bottom-2 left-2">
+          <div className="fixed bottom-2 left-2 mt-6 flex gap-2">
             {(['idle', 'speaking', 'thinking', 'error'] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setOrbState(s)}
                 className={`rounded-full px-2 py-0.5 text-xs capitalize transition ${
-                  orbState === s ? ' bg-white/20' : 'bg-white/10'
+                  orbState === s ? 'bg-white/20' : 'bg-white/10'
                 }`}
               >
                 {/* {s} */}
@@ -153,23 +153,27 @@ export function HomeScreen() {
       </div>
 
       <div className="fixed bottom-4 right-4 flex flex-row gap-4">
-        <div className="bg-black/20 rounded-3xl p-4 flex flex-col items-center max-w-xs gap-1">
+        <div className="flex max-w-xs flex-col items-center gap-1 rounded-3xl bg-black/20 p-4">
           <img src={icon} className="size-8" alt="message icon" />
           <p className="mt-2 text-xs">Customer history</p>
-          <p className="text-xs text-center opacity-60">
+          <p className="text-center text-xs opacity-60">
             Called about a declined card while travelling. Resolved and travel
             notice added
           </p>
         </div>
       </div>
 
-      <div className="fixed top-4 left-4 text-xs">
-        <p className="opacity-30">Upcoming next:</p>
-        <div className="mt-2">
-          <div>
-            <p className="opacity-60">9:30 AM (in 5 mins)</p>
+      <div className="fixed left-2 top-4 z-10 text-xs">
+        <p className="px-2 opacity-30">Upcoming next:</p>
+        <div className="mt-2 space-y-2">
+          <div className="rounded-xl bg-white/10 p-2 duration-300 hover:bg-white/15">
+            <p className="text-[11px] opacity-60">9:30 AM (in 5 mins)</p>
             <p className="opacity-80">Standup with core team</p>
-            {/* <p>in 5 mins</p> */}
+          </div>
+
+          <div className="rounded-xl bg-white/10 p-2 duration-300 hover:bg-white/15">
+            <p className="text-[11px] opacity-60">12:00 PM (in 2 hours)</p>
+            <p className="opacity-80">Review Aisha&apos;s design doc</p>
           </div>
         </div>
       </div>

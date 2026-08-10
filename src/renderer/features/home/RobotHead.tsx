@@ -427,7 +427,7 @@ export function RobotHead({ className, showMoods = true }: Props) {
 
       {showMoods && (
         <div
-          className="mt-3 hidden flex max-w-[min(100vw-2rem,420px)] gap-1.5 overflow-x-auto rounded-full border border-zinc-200/80 bg-white/70 p-1.5 backdrop-blur dark:border-zinc-700/60 dark:bg-zinc-900/70"
+          className="mt-3 flex hidden max-w-[min(100vw-2rem,420px)] gap-1.5 overflow-x-auto rounded-full border border-zinc-200/80 bg-white/70 p-1.5 backdrop-blur dark:border-zinc-700/60 dark:bg-zinc-900/70"
           role="group"
           aria-label="Expression"
         >
