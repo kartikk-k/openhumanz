@@ -53,6 +53,7 @@ import settingsAppModule, {
 } from './modules/settings';
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
+import { createSystemModule } from './modules/system';
 import { createComposioModule } from './modules/composio';
 import { createSupermemoryModule } from './modules/supermemory';
 import { createChatModule } from './modules/chat';
@@ -214,6 +215,7 @@ export async function bootstrap(): Promise<AppServices> {
       settingsAppModule,
       macosAppModule,
       createDialogModule(),
+      createSystemModule(),
       composioModule,
       supermemoryModule,
       chatModule,

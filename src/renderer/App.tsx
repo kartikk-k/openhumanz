@@ -17,7 +17,6 @@ import { SettingsScreen } from './features/settings/SettingsScreen';
 import { OnboardingScreen } from './features/onboarding/OnboardingScreen';
 import { HomeScreen } from './features/home/HomeScreen';
 import './App.css';
-import GradientShader from './features/home/Background';
 
 /**
  * Routing.

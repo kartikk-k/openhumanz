@@ -6,7 +6,13 @@
  * through IPC.
  */
 import path from 'path';
-import { app, BrowserWindow, shell } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  session,
+  shell,
+  systemPreferences,
+} from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
 import { resolveHtmlPath } from './util';
@@ -122,6 +128,32 @@ const createWindow = async () => {
   // renderer's draggable region.
   if (isMac && typeof mainWindow.setWindowButtonVisibility === 'function') {
     mainWindow.setWindowButtonVisibility(false);
+  }
+
+  // Allow the renderer to use the microphone (hold-Space to listen). Electron
+  // denies getUserMedia by default until a permission handler grants it; on
+  // macOS we also proactively request the OS-level mic entitlement so the
+  // system prompt appears the first time.
+  mainWindow.webContents.session.setPermissionRequestHandler(
+    (_wc, permission, callback) => {
+      callback(permission === 'media' || permission === 'microphone');
+    },
+  );
+  session.defaultSession.setPermissionCheckHandler(
+    (_wc, permission) => permission === 'media' || permission === 'microphone',
+  );
+  if (isMac) {
+    const status = systemPreferences.getMediaAccessStatus('microphone');
+    console.log('[mic] macOS access status:', status);
+    // 'not-determined' → the OS will show its prompt; other values are sticky
+    // and can only be changed in System Settings › Privacy › Microphone.
+    void systemPreferences
+      .askForMediaAccess('microphone')
+      .then((granted) => {
+        console.log('[mic] askForMediaAccess granted:', granted);
+        return granted;
+      })
+      .catch((err) => console.warn('[mic] askForMediaAccess failed:', err));
   }
 
   mainWindow.loadURL(resolveHtmlPath('index.html'));

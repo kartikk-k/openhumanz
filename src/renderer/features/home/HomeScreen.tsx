@@ -8,15 +8,67 @@
  * To get back to the rest of the app, navigate anywhere else (the routes still
  * exist) — e.g. add a link, or use the corner button below.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ROUTES } from '../../routes';
-import icon from './image.png'
-import { GlassOrb, type OrbState } from './GlassOrb';
+import icon from './image.png';
+import { GlassOrb, GALLERY_NAMES, type OrbState } from './GlassOrb';
+import { useMicLevel, type MicStatus } from './useMicLevel';
+import { call } from '../../lib/ipc';
+import { IPC } from '../../../shared/ipc';
 
 export function HomeScreen() {
   const navigate = useNavigate();
   const [orbState, setOrbState] = useState<OrbState>('idle');
+  // when set, overrides the state look with an exploration preset
+  const [preset, setPreset] = useState<string | undefined>(undefined);
+
+  // Hold Space to listen: opens the mic and drives the orb from real volume.
+  const [listening, setListening] = useState(false);
+  const { levelRef: micLevel, status: micStatus } = useMicLevel(listening);
+  // timer for the brief "thinking" beat after releasing Space
+  const thinkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const isTypingTarget = (el: EventTarget | null) => {
+      const t = el as HTMLElement | null;
+      if (!t) return false;
+      const tag = t.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable;
+    };
+    const clearThink = () => {
+      if (thinkTimerRef.current) {
+        clearTimeout(thinkTimerRef.current);
+        thinkTimerRef.current = null;
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      if (isTypingTarget(e.target)) return; // don't hijack Space while typing
+      e.preventDefault();
+      clearThink(); // grabbing the mic again cancels a pending think->idle
+      setListening(true);
+      setOrbState('speaking');
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code !== 'Space') return;
+      setListening(false);
+      // brief "thinking" beat, then settle back to idle
+      setOrbState('thinking');
+      clearThink();
+      thinkTimerRef.current = setTimeout(() => {
+        setOrbState('idle');
+        thinkTimerRef.current = null;
+      }, 2000);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      clearThink();
+    };
+  }, []);
 
   return (
     <div className="relative h-screen w-screen overflow-auto">
@@ -36,7 +88,12 @@ export function HomeScreen() {
       {/* ─── Your experiment goes here ─────────────────────────────── */}
 
       <div className="relative z-10 flex h-full w-full flex-col items-center justify-center py-8">
-          <GlassOrb state={orbState} size={340} />
+        <GlassOrb
+          state={orbState}
+          preset={preset}
+          size={340}
+          levelRef={listening ? micLevel : undefined}
+        />
         <div className="flex flex-1 flex-col items-center">
           {/* Voice-reactive glass orb — fullscreen transparent canvas, orb
               drawn centered at a fixed pixel size so its glow blends cleanly.
@@ -50,22 +107,39 @@ export function HomeScreen() {
             How can I help you today?
           </h1>
 
+          {/* Mic / listening status, small text below the orb */}
+          <MicHint status={micStatus} listening={listening} />
+
           {/* State toggle to preview the reactive animation */}
           <div className="mt-6 flex gap-2 fixed bottom-2 left-2">
-            {(['idle', 'speaking', 'thinking'] as const).map((s) => (
+            {(['idle', 'speaking', 'thinking', 'error'] as const).map((s) => (
               <button
                 key={s}
                 type="button"
                 onClick={() => setOrbState(s)}
                 className={`rounded-full px-2 py-0.5 text-xs capitalize transition ${
-                  orbState === s
-                    ? ' bg-white/20'
-                    : 'bg-white/10'
+                  orbState === s ? ' bg-white/20' : 'bg-white/10'
                 }`}
               >
                 {/* {s} */}
               </button>
             ))}
+          </div>
+
+          {/* Shape: minimal dropdown. Overrides the state silhouette while set. */}
+          <div className="fixed bottom-5 left-0">
+            <select
+              value={preset ?? ''}
+              onChange={(e) => setPreset(e.target.value || undefined)}
+              className="rounded-full bg-white/10 px-3 py-1 text-xs text-white/80 outline-none backdrop-blur transition hover:bg-white/15"
+            >
+              <option value="">Default shape</option>
+              {GALLERY_NAMES.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
 
@@ -79,17 +153,96 @@ export function HomeScreen() {
       </div>
 
       <div className="fixed bottom-4 right-4 flex flex-row gap-4">
-
         <div className="bg-black/20 rounded-3xl p-4 flex flex-col items-center max-w-xs gap-1">
-          <img src={icon} className="size-8" />          
+          <img src={icon} className="size-8" alt="message icon" />
           <p className="mt-2 text-xs">Customer history</p>
-          <p className="text-xs text-center opacity-60">Called about a declined card while travelling. Resolved and travel notice added.</p>
-
-
+          <p className="text-xs text-center opacity-60">
+            Called about a declined card while travelling. Resolved and travel
+            notice added
+          </p>
         </div>
-
       </div>
 
+      <div className="fixed top-4 left-4 text-xs">
+        <p className="opacity-30">Upcoming next:</p>
+        <div className="mt-2">
+          <div>
+            <p className="opacity-60">9:30 AM (in 5 mins)</p>
+            <p className="opacity-80">Standup with core team</p>
+            {/* <p>in 5 mins</p> */}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const ERROR_STATUSES: MicStatus[] = ['denied', 'nodevice', 'error'];
+
+/** Small status line under the orb: prompts to hold Space, or shows mic errors.
+ *  Error states linger for a few seconds after releasing Space so they can be
+ *  read and acted on (the "Open Settings" button). */
+function MicHint({
+  status,
+  listening,
+}: {
+  status: MicStatus;
+  listening: boolean;
+}) {
+  // A sticky error that survives releasing Space, cleared by a timer.
+  const [stickyError, setStickyError] = useState<MicStatus | null>(null);
+
+  useEffect(() => {
+    if (ERROR_STATUSES.includes(status)) {
+      setStickyError(status);
+      const id = setTimeout(() => setStickyError(null), 5000);
+      return () => clearTimeout(id);
+    }
+    return undefined;
+  }, [status]);
+
+  // While actively listening, show the live status; otherwise fall back to the
+  // sticky error (if any) so a denied/error message stays visible ~5s.
+  const shown: MicStatus | null = listening ? status : stickyError;
+
+  let text = 'Hold Space to talk';
+  let tone = 'text-white/40';
+  let denied = false;
+
+  if (shown === 'requesting') {
+    text = 'Requesting microphone…';
+    tone = 'text-white/60';
+  } else if (shown === 'listening') {
+    text = 'Listening…';
+    tone = 'text-white/70';
+  } else if (shown === 'denied') {
+    text = 'Microphone access denied';
+    tone = 'text-red-400/90';
+    denied = true;
+  } else if (shown === 'nodevice') {
+    text = 'No microphone found';
+    tone = 'text-red-400/90';
+  } else if (shown === 'error') {
+    text = 'Could not access the microphone';
+    tone = 'text-red-400/90';
+  }
+
+  const openSettings = () => {
+    void call(IPC.system.openMicSettings, {});
+  };
+
+  return (
+    <div className="mt-4 flex max-w-xs flex-col items-center gap-2">
+      <p className={`text-center text-xs transition ${tone}`}>{text}</p>
+      {denied && (
+        <button
+          type="button"
+          onClick={openSettings}
+          className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 transition hover:bg-white/15"
+        >
+          Open Microphone Settings
+        </button>
+      )}
     </div>
   );
 }

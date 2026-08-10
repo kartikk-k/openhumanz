@@ -7,13 +7,7 @@
 import * as THREE from 'three';
 
 export type RobotMoodId =
-  | 'neutral'
-  | 'happy'
-  | 'angry'
-  | 'sad'
-  | 'surprised'
-  | 'sleepy'
-  | 'wink';
+  'neutral' | 'happy' | 'angry' | 'sad' | 'surprised' | 'sleepy' | 'wink';
 
 export type FaceParams = {
   eyeW: number;
@@ -320,10 +314,10 @@ function sphericalPatch(
   const nor: number[] = [];
   const uv: number[] = [];
   const idx: number[] = [];
-  for (let j = 0; j <= segY; j++) {
+  for (let j = 0; j <= segY; j += 1) {
     const v = j / segY;
     const ay = -bMax + 2 * bMax * v;
-    for (let i = 0; i <= segX; i++) {
+    for (let i = 0; i <= segX; i += 1) {
       const u = i / segX;
       const ax = -aMax + 2 * aMax * u;
       const nx = Math.sin(ax) * Math.cos(ay);
@@ -334,8 +328,8 @@ function sphericalPatch(
       uv.push(u, v);
     }
   }
-  for (let j = 0; j < segY; j++) {
-    for (let i = 0; i < segX; i++) {
+  for (let j = 0; j < segY; j += 1) {
+    for (let i = 0; i < segX; i += 1) {
       const a = j * (segX + 1) + i;
       const b = a + 1;
       const c = a + segX + 1;
@@ -409,17 +403,7 @@ export function createRobotHead(
     const s = settings;
     d = smin(
       d,
-      sdEllipsoid(
-        x,
-        y,
-        z,
-        -s.earX,
-        s.earY,
-        s.earZ,
-        s.earRx,
-        s.earRy,
-        s.earRz,
-      ),
+      sdEllipsoid(x, y, z, -s.earX, s.earY, s.earZ, s.earRx, s.earRy, s.earRz),
       s.earBlend,
     );
     d = smin(
@@ -439,11 +423,11 @@ export function createRobotHead(
     const geo = new THREE.SphereGeometry(R, 128, 128);
     const pos = geo.attributes.position;
     const dir = new THREE.Vector3();
-    for (let i = 0; i < pos.count; i++) {
+    for (let i = 0; i < pos.count; i += 1) {
       dir.fromBufferAttribute(pos, i).normalize();
       let lo = 0.65;
       let hi = 1.5;
-      for (let s = 0; s < 22; s++) {
+      for (let s = 0; s < 22; s += 1) {
         const mid = (lo + hi) * 0.5;
         if (shellSDF(dir.x * mid, dir.y * mid, dir.z * mid) > 0) hi = mid;
         else lo = mid;
@@ -474,7 +458,7 @@ export function createRobotHead(
 
   let current: RobotMoodId = 'neutral';
   let target = { ...ROBOT_MOODS.neutral.p };
-  let cur = { ...ROBOT_MOODS.neutral.p };
+  const cur = { ...ROBOT_MOODS.neutral.p };
   let faceDirty = true;
 
   const faceCanvas = document.createElement('canvas');
@@ -561,14 +545,7 @@ export function createRobotHead(
         ctx.rotate((e.sign * p.eyeTilt * Math.PI) / 180);
         ctx.scale(1, squash);
         glow(() => {
-          roundRect(
-            ctx,
-            -p.eyeW / 2,
-            -p.eyeH / 2,
-            p.eyeW,
-            p.eyeH,
-            p.eyeR,
-          );
+          roundRect(ctx, -p.eyeW / 2, -p.eyeH / 2, p.eyeW, p.eyeH, p.eyeR);
           ctx.fill();
         }, 1 - p.arcA);
         ctx.restore();
@@ -721,7 +698,7 @@ export function createRobotHead(
     raf = requestAnimationFrame(frame);
 
     let moving = false;
-    for (let i = 0; i < FACE_KEYS.length; i++) {
+    for (let i = 0; i < FACE_KEYS.length; i += 1) {
       const k = FACE_KEYS[i];
       const d = target[k] - cur[k];
       if (Math.abs(d) > 0.0005) {

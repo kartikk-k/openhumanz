@@ -10,7 +10,6 @@ import { Toaster } from '../ui/Toast';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 import { Sidebar } from './Sidebar';
 import { EnvironmentBanner, StatusStrip } from './StatusStrip';
-import GradientShader from '../../features/home/Background';
 
 /**
  * The frame: sidebar, status strip, scrolling content.

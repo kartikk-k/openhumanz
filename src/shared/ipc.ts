@@ -143,6 +143,11 @@ export const IPC = {
   dialog: {
     pickDirectory: 'dialog:pick-directory',
   },
+  system: {
+    micStatus: 'system:mic-status',
+    requestMic: 'system:request-mic',
+    openMicSettings: 'system:open-mic-settings',
+  },
   chat: {
     sessions: 'chat:sessions',
     transcript: 'chat:transcript',
@@ -330,6 +335,18 @@ export interface IpcContract {
     response: DirectoryPickResult;
   };
 
+  /* system -------------------------------------------------------- */
+  /** Current OS microphone permission (macOS: not-determined/granted/denied/…). */
+  'system:mic-status': { request: Empty; response: MicPermissionResult };
+  /**
+   * Ensure OS microphone access: triggers the native prompt when the status is
+   * not-determined (registering the app in the OS privacy list), and returns
+   * the resulting status. Call before getUserMedia.
+   */
+  'system:request-mic': { request: Empty; response: MicPermissionResult };
+  /** Open the OS microphone privacy pane so the user can grant access. */
+  'system:open-mic-settings': { request: Empty; response: Ack };
+
   /* chat ---------------------------------------------------------- */
   'chat:sessions': { request: Empty; response: ChatSessionList };
   'chat:transcript': {
@@ -492,6 +509,12 @@ export interface DirectoryPickRequest {
 export interface DirectoryPickResult {
   /** The chosen absolute path, or null if the user cancelled. */
   path: string | null;
+}
+
+/** OS microphone permission state (mirrors Electron's getMediaAccessStatus). */
+export interface MicPermissionResult {
+  /** 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown'. */
+  status: 'not-determined' | 'granted' | 'denied' | 'restricted' | 'unknown';
 }
 
 /** Union of every renderer -> main channel name. */

@@ -21,71 +21,316 @@ const RANGE_SECTIONS: { title: string; rows: RangeDef[] }[] = [
   {
     title: 'Shape · ears',
     rows: [
-      { key: 'earX', label: 'Ear X', min: 0.7, max: 1.2, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earY', label: 'Ear Y', min: -0.3, max: 0.3, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earZ', label: 'Ear Z', min: -0.2, max: 0.3, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earRx', label: 'Ear radius X', min: 0.05, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earRy', label: 'Ear radius Y', min: 0.05, max: 0.5, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earRz', label: 'Ear radius Z', min: 0.05, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'earBlend', label: 'Ear blend', min: 0.02, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
+      {
+        key: 'earX',
+        label: 'Ear X',
+        min: 0.7,
+        max: 1.2,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earY',
+        label: 'Ear Y',
+        min: -0.3,
+        max: 0.3,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earZ',
+        label: 'Ear Z',
+        min: -0.2,
+        max: 0.3,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earRx',
+        label: 'Ear radius X',
+        min: 0.05,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earRy',
+        label: 'Ear radius Y',
+        min: 0.05,
+        max: 0.5,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earRz',
+        label: 'Ear radius Z',
+        min: 0.05,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'earBlend',
+        label: 'Ear blend',
+        min: 0.02,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
     ],
   },
   {
     title: 'Shape · crown',
     rows: [
-      { key: 'topX', label: 'Crown X', min: -0.3, max: 0.3, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topY', label: 'Crown Y', min: 0.7, max: 1.2, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topZ', label: 'Crown Z', min: -0.2, max: 0.3, step: 0.01, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topRx', label: 'Crown radius X', min: 0.05, max: 0.5, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topRy', label: 'Crown radius Y', min: 0.05, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topRz', label: 'Crown radius Z', min: 0.05, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'topBlend', label: 'Crown blend', min: 0.02, max: 0.4, step: 0.005, onChange: (h) => h.scheduleShellRebuild() },
-      { key: 'headScaleY', label: 'Head squash Y', min: 0.85, max: 1.1, step: 0.005, onChange: (h) => h.applyHeadScale() },
+      {
+        key: 'topX',
+        label: 'Crown X',
+        min: -0.3,
+        max: 0.3,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topY',
+        label: 'Crown Y',
+        min: 0.7,
+        max: 1.2,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topZ',
+        label: 'Crown Z',
+        min: -0.2,
+        max: 0.3,
+        step: 0.01,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topRx',
+        label: 'Crown radius X',
+        min: 0.05,
+        max: 0.5,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topRy',
+        label: 'Crown radius Y',
+        min: 0.05,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topRz',
+        label: 'Crown radius Z',
+        min: 0.05,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'topBlend',
+        label: 'Crown blend',
+        min: 0.02,
+        max: 0.4,
+        step: 0.005,
+        onChange: (h) => h.scheduleShellRebuild(),
+      },
+      {
+        key: 'headScaleY',
+        label: 'Head squash Y',
+        min: 0.85,
+        max: 1.1,
+        step: 0.005,
+        onChange: (h) => h.applyHeadScale(),
+      },
     ],
   },
   {
     title: 'Material',
     rows: [
-      { key: 'roughness', label: 'Roughness', min: 0, max: 1, step: 0.01, onChange: (h) => h.applyMaterial() },
-      { key: 'metalness', label: 'Metalness', min: 0, max: 1, step: 0.01, onChange: (h) => h.applyMaterial() },
+      {
+        key: 'roughness',
+        label: 'Roughness',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        onChange: (h) => h.applyMaterial(),
+      },
+      {
+        key: 'metalness',
+        label: 'Metalness',
+        min: 0,
+        max: 1,
+        step: 0.01,
+        onChange: (h) => h.applyMaterial(),
+      },
     ],
   },
   {
     title: 'Face · glow',
     rows: [
-      { key: 'bezelWidth', label: 'Bezel width', min: 10, max: 120, step: 1, onChange: (h) => h.markFaceDirty() },
-      { key: 'bezelBlur', label: 'Bezel blur', min: 0, max: 80, step: 1, onChange: (h) => h.markFaceDirty() },
-      { key: 'glowSoft', label: 'Feature glow soft', min: 0, max: 80, step: 1, onChange: (h) => h.markFaceDirty() },
-      { key: 'glowCrisp', label: 'Feature glow crisp', min: 0, max: 40, step: 1, onChange: (h) => h.markFaceDirty() },
+      {
+        key: 'bezelWidth',
+        label: 'Bezel width',
+        min: 10,
+        max: 120,
+        step: 1,
+        onChange: (h) => h.markFaceDirty(),
+      },
+      {
+        key: 'bezelBlur',
+        label: 'Bezel blur',
+        min: 0,
+        max: 80,
+        step: 1,
+        onChange: (h) => h.markFaceDirty(),
+      },
+      {
+        key: 'glowSoft',
+        label: 'Feature glow soft',
+        min: 0,
+        max: 80,
+        step: 1,
+        onChange: (h) => h.markFaceDirty(),
+      },
+      {
+        key: 'glowCrisp',
+        label: 'Feature glow crisp',
+        min: 0,
+        max: 40,
+        step: 1,
+        onChange: (h) => h.markFaceDirty(),
+      },
     ],
   },
   {
     title: 'Visor mesh',
     rows: [
-      { key: 'visorRadius', label: 'Visor radius', min: 1.0, max: 1.08, step: 0.001, onChange: (h) => h.scheduleVisorRebuild() },
-      { key: 'visorA', label: 'Visor width', min: 0.4, max: 0.9, step: 0.005, onChange: (h) => h.scheduleVisorRebuild() },
-      { key: 'visorB', label: 'Visor height', min: 0.3, max: 0.7, step: 0.005, onChange: (h) => h.scheduleVisorRebuild() },
+      {
+        key: 'visorRadius',
+        label: 'Visor radius',
+        min: 1.0,
+        max: 1.08,
+        step: 0.001,
+        onChange: (h) => h.scheduleVisorRebuild(),
+      },
+      {
+        key: 'visorA',
+        label: 'Visor width',
+        min: 0.4,
+        max: 0.9,
+        step: 0.005,
+        onChange: (h) => h.scheduleVisorRebuild(),
+      },
+      {
+        key: 'visorB',
+        label: 'Visor height',
+        min: 0.3,
+        max: 0.7,
+        step: 0.005,
+        onChange: (h) => h.scheduleVisorRebuild(),
+      },
     ],
   },
   {
     title: 'Lights',
     rows: [
-      { key: 'hemi', label: 'Hemisphere', min: 0, max: 2, step: 0.01, onChange: (h) => h.applyLights() },
-      { key: 'key', label: 'Key', min: 0, max: 2, step: 0.01, onChange: (h) => h.applyLights() },
-      { key: 'fill', label: 'Fill', min: 0, max: 2, step: 0.01, onChange: (h) => h.applyLights() },
-      { key: 'rim', label: 'Rim', min: 0, max: 2, step: 0.01, onChange: (h) => h.applyLights() },
+      {
+        key: 'hemi',
+        label: 'Hemisphere',
+        min: 0,
+        max: 2,
+        step: 0.01,
+        onChange: (h) => h.applyLights(),
+      },
+      {
+        key: 'key',
+        label: 'Key',
+        min: 0,
+        max: 2,
+        step: 0.01,
+        onChange: (h) => h.applyLights(),
+      },
+      {
+        key: 'fill',
+        label: 'Fill',
+        min: 0,
+        max: 2,
+        step: 0.01,
+        onChange: (h) => h.applyLights(),
+      },
+      {
+        key: 'rim',
+        label: 'Rim',
+        min: 0,
+        max: 2,
+        step: 0.01,
+        onChange: (h) => h.applyLights(),
+      },
     ],
   },
   {
     title: 'Camera · motion',
     rows: [
-      { key: 'camZ', label: 'Camera Z', min: 3, max: 12, step: 0.1, onChange: (h) => h.applyCamera() },
-      { key: 'camFov', label: 'Camera FOV', min: 18, max: 60, step: 1, onChange: (h) => h.applyCamera() },
-      { key: 'followX', label: 'Follow X', min: 0, max: 0.8, step: 0.01, onChange: () => {} },
-      { key: 'followY', label: 'Follow Y', min: 0, max: 0.6, step: 0.01, onChange: () => {} },
-      { key: 'idleYaw', label: 'Idle yaw', min: 0, max: 0.2, step: 0.005, onChange: () => {} },
-      { key: 'idlePitch', label: 'Idle pitch', min: 0, max: 0.15, step: 0.005, onChange: () => {} },
-      { key: 'idleBob', label: 'Idle bob', min: 0, max: 0.1, step: 0.005, onChange: () => {} },
+      {
+        key: 'camZ',
+        label: 'Camera Z',
+        min: 3,
+        max: 12,
+        step: 0.1,
+        onChange: (h) => h.applyCamera(),
+      },
+      {
+        key: 'camFov',
+        label: 'Camera FOV',
+        min: 18,
+        max: 60,
+        step: 1,
+        onChange: (h) => h.applyCamera(),
+      },
+      {
+        key: 'followX',
+        label: 'Follow X',
+        min: 0,
+        max: 0.8,
+        step: 0.01,
+        onChange: () => {},
+      },
+      {
+        key: 'followY',
+        label: 'Follow Y',
+        min: 0,
+        max: 0.6,
+        step: 0.01,
+        onChange: () => {},
+      },
+      {
+        key: 'idleYaw',
+        label: 'Idle yaw',
+        min: 0,
+        max: 0.2,
+        step: 0.005,
+        onChange: () => {},
+      },
+      {
+        key: 'idlePitch',
+        label: 'Idle pitch',
+        min: 0,
+        max: 0.15,
+        step: 0.005,
+        onChange: () => {},
+      },
+      {
+        key: 'idleBob',
+        label: 'Idle bob',
+        min: 0,
+        max: 0.1,
+        step: 0.005,
+        onChange: () => {},
+      },
     ],
   },
 ];
@@ -213,9 +458,13 @@ export function RobotHead({ className, showMoods = true }: Props) {
             Controls
           </h2>
 
-          <label className="mb-2 flex items-center justify-between gap-2 text-[12px] text-zinc-600 dark:text-zinc-400">
+          <label
+            htmlFor="robot-shell-color"
+            className="mb-2 flex items-center justify-between gap-2 text-[12px] text-zinc-600 dark:text-zinc-400"
+          >
             <span>Shell color</span>
             <input
+              id="robot-shell-color"
               type="color"
               value={settings.shellColor}
               onChange={(e) =>
@@ -253,7 +502,9 @@ export function RobotHead({ className, showMoods = true }: Props) {
                       onChange={(e) =>
                         patchSetting(
                           row.key,
-                          Number(e.target.value) as RobotHeadSettings[typeof row.key],
+                          Number(
+                            e.target.value,
+                          ) as RobotHeadSettings[typeof row.key],
                           row.onChange,
                         )
                       }
@@ -265,8 +516,12 @@ export function RobotHead({ className, showMoods = true }: Props) {
             </div>
           ))}
 
-          <label className="mt-2 flex items-center gap-2 text-[12px] text-zinc-600 dark:text-zinc-400">
+          <label
+            htmlFor="robot-idle-motion"
+            className="mt-2 flex items-center gap-2 text-[12px] text-zinc-600 dark:text-zinc-400"
+          >
             <input
+              id="robot-idle-motion"
               type="checkbox"
               checked={settings.motion}
               onChange={(e) =>
