@@ -10,6 +10,7 @@ import { Toaster } from '../ui/Toast';
 import { ErrorBoundary } from '../shared/ErrorBoundary';
 import { Sidebar } from './Sidebar';
 import { EnvironmentBanner, StatusStrip } from './StatusStrip';
+import GradientShader from '../../features/home/Background';
 
 /**
  * The frame: sidebar, status strip, scrolling content.
@@ -46,7 +47,7 @@ export function AppShell() {
   }, [shouldOnboard, navigate]);
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden text-zinc-900 antialiased dark:text-zinc-100">
+    <div className="flex relative z-20 h-screen w-screen overflow-hidden text-zinc-900 antialiased dark:text-zinc-100">
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
         <StatusStrip />

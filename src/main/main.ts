@@ -96,12 +96,13 @@ const createWindow = async () => {
     // renderer owns a `.draggable-region` so the window can still be moved.
     titleBarStyle: isMac ? 'hidden' : 'default',
     // Let macOS vibrancy show through: the window is transparent and the OS
-    // blurs whatever is behind it. `visualEffectState: 'active'` keeps the
-    // blur lively even when the window is not focused.
+    // blurs whatever is behind it. `sidebar` is denser than `under-window`.
+    // `visualEffectState: 'active'` keeps the blur lively even when the
+    // window is not focused.
     ...(isMac
       ? {
           transparent: true,
-          vibrancy: 'under-window' as const,
+          vibrancy: 'sidebar' as const,
           visualEffectState: 'active' as const,
           backgroundColor: '#00000000',
         }

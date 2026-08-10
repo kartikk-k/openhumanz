@@ -33,12 +33,12 @@
      follows the OS (tailwind darkMode: 'media'), so match it with a media query
      rather than a class. */
   #root {
-    background-color: rgb(255 255 255 / 0.55);
+    background-color: rgb(255 255 255 / 0.78);
   }
 
   @media (prefers-color-scheme: dark) {
     #root {
-      background-color: rgb(9 9 11 / 0.5);
+      background-color: rgb(9 9 11 / 0);
     }
   }
 

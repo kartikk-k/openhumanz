@@ -12,6 +12,7 @@
 import {
   Activity,
   CalendarClock,
+  LayoutDashboard,
   Library,
   ListTodo,
   MessageSquare,
@@ -28,6 +29,8 @@ export const ROUTES = {
   memory: '/memory',
   approvals: '/approvals',
   settings: '/settings',
+  /** A blank full-window scratch page, rendered outside the app shell. */
+  home: '/home',
   onboarding: '/onboarding',
 } as const;
 
@@ -45,6 +48,13 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  {
+    key: 'home',
+    path: ROUTES.home,
+    label: 'Home',
+    icon: LayoutDashboard,
+    description: 'A blank canvas to experiment on.',
+  },
   {
     key: 'chat',
     path: ROUTES.chat,

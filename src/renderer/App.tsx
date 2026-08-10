@@ -15,7 +15,9 @@ import { MemoryScreen } from './features/memory/MemoryScreen';
 import { ApprovalsScreen } from './features/approvals/ApprovalsScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { OnboardingScreen } from './features/onboarding/OnboardingScreen';
+import { HomeScreen } from './features/home/HomeScreen';
 import './App.css';
+import GradientShader from './features/home/Background';
 
 /**
  * Routing.
@@ -32,9 +34,13 @@ import './App.css';
 export default function App() {
   return (
     <ErrorBoundary title="The app failed to start">
+      {/* <GradientShader className="fixed inset-0 select-none opacity-50" /> */}
+
       <Router initialEntries={[ROUTES.chat]}>
         <Routes>
           <Route path={ROUTES.onboarding} element={<OnboardingScreen />} />
+          {/* Home is a blank scratch page — full window, no shell. */}
+          <Route path={`${ROUTES.home}/*`} element={<HomeScreen />} />
 
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to={ROUTES.chat} replace />} />
