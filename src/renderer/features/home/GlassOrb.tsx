@@ -329,6 +329,7 @@ const FRAG = `precision highp float;
 varying vec2 vUv;
 uniform vec2  uResolution;
 uniform float uPixelSize;   // intended orb box size in device pixels
+uniform vec2  uCenter;      // orb center as a fraction of the canvas (0..1)
 uniform float uTime;
 uniform float uPhase;        // CPU-accumulated animation phase (speed-continuous)
 uniform float uWobblePhase;  // CPU-accumulated wobble sweep phase
@@ -403,8 +404,8 @@ void main(){
   // orb size (uPixelSize) — NOT the canvas size — so the orb stays a fixed
   // on-screen size even when the canvas is fullscreen. This lets the glow fade
   // out fully inside a big transparent canvas (clean blend, no square edge).
-  vec2 px = (uv - 0.5) * uResolution;   // pixels from center, uniform scale on both axes
-  vec2 p = px / uPixelSize;             // 1.0 == half the intended orb box
+  vec2 px = (uv - uCenter) * uResolution; // pixels from the orb center
+  vec2 p = px / uPixelSize;               // 1.0 == half the intended orb box
 
   // uPhase is a CPU-accumulated animation phase (advanced by the current,
   // blended speed each frame) — continuous across state changes so nothing
@@ -591,6 +592,12 @@ export interface GlassOrbProps {
    * is given), the simulator is used.
    */
   levelRef?: MutableRefObject<number | null>;
+  /**
+   * Orb center as a fraction of the canvas: [0.5, 0.5] is dead center,
+   * [0.5, 0.72] sits lower. Smoothly eased toward each frame, so changing it
+   * glides the orb to its new resting spot. Default [0.5, 0.5].
+   */
+  center?: [number, number];
 }
 
 export function GlassOrb({
@@ -600,6 +607,7 @@ export function GlassOrb({
   controls = true,
   preset,
   levelRef: externalLevelRef,
+  center = [0.5, 0.5],
 }: GlassOrbProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef<OrbState>(state);
@@ -608,6 +616,7 @@ export function GlassOrb({
   const levelRef = useRef<MutableRefObject<number | null> | undefined>(
     externalLevelRef,
   );
+  const centerTargetRef = useRef<[number, number]>(center);
   const [presets, setPresets] = useState<PresetMap>(loadPresets);
   const [panelOpen, setPanelOpen] = useState(false);
   // live-blended uniforms actually sent to the shader
@@ -618,6 +627,7 @@ export function GlassOrb({
   presetRef.current = preset;
   sizeRef.current = size;
   levelRef.current = externalLevelRef;
+  centerTargetRef.current = center;
   presetsRef.current = presets;
 
   // ⌘, / Ctrl+, toggles the panel
@@ -711,6 +721,7 @@ export function GlassOrb({
     let angle = 0; // accumulated rotation, state-independent & continuous
     let phase = 0; // accumulated animation phase (advanced by blended speed)
     let wobblePhase = 0; // accumulated wobble sweep phase
+    const centerCur: [number, number] = [...centerTargetRef.current]; // eased position
     let raf = 0;
     const frame = (now: number) => {
       T = (now - start) / 1000;
@@ -757,6 +768,11 @@ export function GlassOrb({
         dt *
         ((active.uLobes as number) > 0.5 ? (active.uLobes as number) : 1);
 
+      // ease the orb center toward its target so position changes glide
+      const ct = centerTargetRef.current;
+      centerCur[0] += (ct[0] - centerCur[0]) * 0.08;
+      centerCur[1] += (ct[1] - centerCur[1]) * 0.08;
+
       let level = 0;
       let pulse = 0;
       const extLevel = levelRef.current?.current;
@@ -782,6 +798,7 @@ export function GlassOrb({
       gl.clear(gl.COLOR_BUFFER_BIT);
 
       gl.uniform2f(loc('uResolution'), canvas.width, canvas.height);
+      gl.uniform2f(loc('uCenter'), centerCur[0], centerCur[1]);
       // orb box in device pixels — fixed on-screen size, independent of canvas
       gl.uniform1f(loc('uPixelSize'), sizeRef.current * dpr);
       gl.uniform1f(loc('uTime'), T);

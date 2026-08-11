@@ -106,3 +106,31 @@
   -webkit-app-region: no-drag;
   app-region: no-drag;
 }
+
+/* ── StreamingText: smooth per-token entrance (FlowToken-style) ─────────
+   Each token span runs this once on mount. Tokens are released at a steady
+   rate, so many are mid-animation at once and overlap into a continuous flow —
+   no FLIP, no repositioning, so nothing snaps sideways. */
+.st-token {
+  will-change: opacity, filter, transform;
+  /* longer + softer so many tokens overlap into one continuous wave */
+  animation: st-blurIn 1100ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes st-blurIn {
+  from {
+    opacity: 0;
+    filter: blur(7px);
+    transform: translateY(0.14em) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .st-token {
+    animation: none !important;
+    opacity: 1;
+  }
+}
