@@ -60,6 +60,10 @@ export interface AppEvents {
   /** A live event from a running chat turn, forwarded to the UI for streaming. */
   'chat:stream': { sessionId: string | null; event: ChatStreamEvent };
 
+  /* voice */
+  /** A live transcript update from the realtime voice session. */
+  'voice:transcript': { text: string; final: boolean };
+
   /* composio */
   /** The user set a new Composio API key in the UI; persist it to settings. */
   'composio:save-key': { apiKey: string };

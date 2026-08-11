@@ -119,6 +119,7 @@
     "sql.js": "^1.14.1",
     "tailwind-merge": "^3.4.0",
     "three": "^0.185.1",
+    "ws": "^8.21.3",
     "zod": "^4.4.3",
     "zustand": "^5.0.9"
   },
@@ -137,6 +138,7 @@
     "@types/react-test-renderer": "^19.0.0",
     "@types/three": "^0.185.4",
     "@types/webpack-bundle-analyzer": "^4.7.0",
+    "@types/ws": "^8.18.1",
     "@typescript-eslint/eslint-plugin": "^8.26.1",
     "@typescript-eslint/parser": "^8.26.1",
     "autoprefixer": "^10.4.21",

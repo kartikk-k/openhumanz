@@ -110,6 +110,20 @@ export const SupermemorySettingsSchema = z.object({
 export type SupermemorySettings = z.infer<typeof SupermemorySettingsSchema>;
 
 /**
+ * Voice — speech-to-text for the hold-to-talk interaction. We send recorded
+ * audio to OpenAI's transcription API and feed the transcript into chat. The
+ * key is the user's own OpenAI key, stored here in plain settings.json (which
+ * lives OUTSIDE the repo, like the Composio key) and editable from Settings.
+ */
+export const VoiceSettingsSchema = z.object({
+  /** The user's OpenAI API key. Empty means voice is not configured. */
+  openaiApiKey: z.string().default(''),
+  /** Transcription model. gpt-4o-transcribe is newer/better than whisper-1. */
+  transcribeModel: z.string().default('gpt-4o-transcribe'),
+});
+export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
+
+/**
  * Note on `.prefault({})` rather than `.default({})`:
  * in zod v4 `.default()` takes the schema's *output* type, so a nested object
  * whose every leaf has a default still cannot be defaulted from `{}` — the
@@ -128,6 +142,7 @@ export const SettingsSchema = z.object({
   logging: LoggingSettingsSchema.prefault({}),
   composio: ComposioSettingsSchema.prefault({}),
   supermemory: SupermemorySettingsSchema.prefault({}),
+  voice: VoiceSettingsSchema.prefault({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The shape you may hand to `SettingsSchema.parse` — everything optional. */
@@ -156,6 +171,7 @@ export const SettingsPatchSchema = z.object({
   logging: patchSchema(LoggingSettingsSchema).optional(),
   composio: patchSchema(ComposioSettingsSchema).optional(),
   supermemory: patchSchema(SupermemorySettingsSchema).optional(),
+  voice: patchSchema(VoiceSettingsSchema).optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

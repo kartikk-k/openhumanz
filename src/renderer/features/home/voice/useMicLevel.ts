@@ -11,8 +11,8 @@
  * (e.g. "microphone access denied").
  */
 import { useEffect, useRef, useState } from 'react';
-import { callOr } from '../../lib/ipc';
-import { IPC } from '../../../shared/ipc';
+import { callOr } from '../../../lib/ipc';
+import { IPC } from '../../../../shared/ipc';
 
 export type MicStatus =
   | 'inactive' // not listening

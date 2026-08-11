@@ -27,6 +27,7 @@ import {
   Gauge,
   Library,
   Lock,
+  Mic,
   Monitor,
   Plug,
   PlugZap,
@@ -45,6 +46,7 @@ import {
   ScheduleSettingsSchema,
   SettingsSchema,
   UiSettingsSchema,
+  VoiceSettingsSchema,
   type SettingsPatch,
 } from '../../../shared/settings';
 import { APP_NAME, DEFAULT_WORKSPACE_HINT } from '../../constants';
@@ -86,6 +88,7 @@ import { useSettingsWriter } from './writer';
 const SECTIONS = [
   { id: 'environment', label: 'Environment', icon: PlugZap },
   { id: 'connections', label: 'Connections', icon: Plug },
+  { id: 'voice', label: 'Voice', icon: Mic },
   { id: 'privacy', label: 'Privacy', icon: Lock },
   { id: 'workspace', label: 'Workspace', icon: FolderTree },
   { id: 'engine', label: 'Engine', icon: Cpu },
@@ -339,6 +342,45 @@ export function SettingsScreen() {
           description="Connect apps like Gmail, Calendar and Slack through your own Composio account. Bring your own key; your connected apps live in your account."
         >
           <ComposioPanel />
+        </SettingsSection>
+
+        {/* ---------------------------------------------------------- */}
+        <SettingsSection
+          id="voice"
+          title="Voice"
+          description="Hold-to-talk transcribes your speech with OpenAI, then sends the text to chat. Bring your own OpenAI API key; audio is sent to OpenAI only while you hold to talk."
+        >
+          <FieldGrid>
+            <TextSetting
+              id="voice-openai-key"
+              label="OpenAI API key"
+              monospace
+              placeholder="sk-…"
+              hint="Used only for speech-to-text. Stored locally in settings.json, never uploaded anywhere but OpenAI when you talk."
+              value={settings.voice.openaiApiKey}
+              schema={VoiceSettingsSchema.shape.openaiApiKey}
+              disabled={disabled}
+              onCommit={(value) =>
+                save({ voice: { openaiApiKey: value } }, 'OpenAI API key')
+              }
+            />
+            <TextSetting
+              id="voice-model"
+              label="Transcription model"
+              monospace
+              placeholder="gpt-4o-transcribe"
+              hint="OpenAI transcription model. gpt-4o-transcribe is newer; whisper-1 also works."
+              value={settings.voice.transcribeModel}
+              schema={VoiceSettingsSchema.shape.transcribeModel}
+              disabled={disabled}
+              onCommit={(value) =>
+                save(
+                  { voice: { transcribeModel: value } },
+                  'Transcription model',
+                )
+              }
+            />
+          </FieldGrid>
         </SettingsSection>
 
         {/* ---------------------------------------------------------- */}

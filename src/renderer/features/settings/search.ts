@@ -64,6 +64,24 @@ export const SETTINGS_SEARCH_INDEX: SettingsSearchEntry[] = [
     ],
   },
   {
+    id: 'voice',
+    label: 'Voice',
+    keywords: [
+      'openai',
+      'api key',
+      'speech',
+      'transcribe',
+      'transcription',
+      'whisper',
+      'microphone',
+      'mic',
+      'hold to talk',
+      'dictation',
+      'stt',
+      'gpt-4o-transcribe',
+    ],
+  },
+  {
     id: 'privacy',
     label: 'Privacy',
     keywords: [

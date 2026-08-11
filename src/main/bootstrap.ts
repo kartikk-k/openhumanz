@@ -54,6 +54,7 @@ import settingsAppModule, {
 import macosAppModule from './modules/macos';
 import { createDialogModule } from './modules/dialog';
 import { createSystemModule } from './modules/system';
+import { createVoiceModule } from './modules/voice';
 import { createComposioModule } from './modules/composio';
 import { createSupermemoryModule } from './modules/supermemory';
 import { createChatModule } from './modules/chat';
@@ -172,6 +173,9 @@ function bridgeEventsToRenderer(): void {
     send(IPC_PUSH.chatUpdated, payload),
   );
   appEvents.on('chat:stream', (payload) => send(IPC_PUSH.chatStream, payload));
+  appEvents.on('voice:transcript', (payload) =>
+    send(IPC_PUSH.voiceTranscript, payload),
+  );
 }
 
 export async function bootstrap(): Promise<AppServices> {
@@ -200,6 +204,10 @@ export async function bootstrap(): Promise<AppServices> {
   // browser open uses electron's shell.
   const composioModule = createComposioModule();
 
+  // Voice: speech-to-text for hold-to-talk. Reads the OpenAI key live from
+  // settings (configured below) and transcribes recorded audio.
+  const voiceModule = createVoiceModule();
+
   // Supermemory: the memory engine. Runs a local server (on-device vector store
   // + embeddings) whose fact extraction is routed to the user's own Claude via a
   // local shim — no external key. Owns the agent's memory_store / memory_search.
@@ -217,6 +225,7 @@ export async function bootstrap(): Promise<AppServices> {
       createDialogModule(),
       createSystemModule(),
       composioModule,
+      voiceModule,
       supermemoryModule,
       chatModule,
     ],
@@ -353,6 +362,18 @@ export async function bootstrap(): Promise<AppServices> {
       return undefined;
     })
     .catch(() => {});
+
+  // Voice: read the OpenAI key/model live from settings on every transcription,
+  // so updating the key in Settings takes effect without a restart.
+  voiceModule.configure({
+    getConfig: () => {
+      const settings = getSettingsStore().current();
+      return {
+        apiKey: settings.voice?.openaiApiKey ?? '',
+        model: settings.voice?.transcribeModel || 'gpt-4o-transcribe',
+      };
+    },
+  });
   appEvents.on('composio:save-key', ({ apiKey }) => {
     composioModule.setApiKey(apiKey);
     void getSettingsStore()
