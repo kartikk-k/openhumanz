@@ -13,7 +13,7 @@ export function Composer({
   voiceError: string | null;
 }) {
   return (
-    <div className="pointer-events-none fixed bottom-10 left-1/2 z-30 -translate-x-1/2">
+    <div className="pointer-events-none fixed bottom-10 left-1/2 z-40 -translate-x-1/2">
       <input
         type="text"
         value={draft}

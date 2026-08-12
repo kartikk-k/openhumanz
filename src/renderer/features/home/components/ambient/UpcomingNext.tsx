@@ -1,7 +1,7 @@
 /** Ambient top-left card listing the user's upcoming calendar items. */
 export function UpcomingNext() {
   return (
-    <div className="pointer-events-none fixed left-2 top-4 z-10 text-xs">
+    <div className="pointer-events-none fixed left-2 top-4 z-40 text-xs">
       <p className="px-2 opacity-30">Upcoming next:</p>
       <div className="pointer-events-auto mt-2 space-y-2">
         <div className="rounded-xl bg-white/10 p-2 duration-300 hover:bg-white/15">
