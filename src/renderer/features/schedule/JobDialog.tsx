@@ -30,10 +30,13 @@ import {
 import { IPC } from '../../../shared/ipc';
 import {
   MISSED_RUN_POLICIES,
+  DEFAULT_SCHEDULED_JOB_KIND,
+  defaultMissedRunPolicyFor,
   type MissedRunPolicy,
   type ScheduleCondition,
   type ScheduleConditionKind,
   type ScheduledJob,
+  type ScheduledJobKind,
 } from '../../../shared/schedule';
 import { cn } from '../../lib/utils';
 import { useMutation, useQuery, type IpcError } from '../../lib/ipc';
@@ -79,6 +82,14 @@ const PRESETS: readonly { label: string; cron: string }[] = [
   { label: 'Mondays 08:00', cron: '0 8 * * 1' },
 ];
 
+const KIND_OPTIONS: readonly {
+  value: ScheduledJobKind;
+  label: string;
+}[] = [
+  { value: 'reminder', label: 'Reminder' },
+  { value: 'agent', label: 'Agent' },
+];
+
 const CONDITION_OPTIONS: readonly {
   value: ScheduleConditionKind;
   label: string;
@@ -102,6 +113,7 @@ const WEEKDAYS = [
 interface Draft {
   name: string;
   description: string;
+  kind: ScheduledJobKind;
   prompt: string;
   cron: string;
   timezone: string;
@@ -123,6 +135,7 @@ function emptyDraft(): Draft {
   return {
     name: '',
     description: '',
+    kind: DEFAULT_SCHEDULED_JOB_KIND,
     prompt: '',
     cron: '',
     timezone: hostTimezone(),
@@ -133,7 +146,7 @@ function emptyDraft(): Draft {
     startHour: 9,
     endHour: 18,
     weekdays: [],
-    missedRunPolicy: 'skip',
+    missedRunPolicy: defaultMissedRunPolicyFor(DEFAULT_SCHEDULED_JOB_KIND),
     engine: '',
     allowedTools: '',
     maxTurns: '',
@@ -148,6 +161,7 @@ function draftFrom(job: ScheduledJob): Draft {
     ...base,
     name: job.name,
     description: job.description ?? '',
+    kind: job.kind,
     prompt: job.prompt,
     cron: job.cron,
     timezone: job.timezone || base.timezone,
@@ -205,7 +219,9 @@ function parsePositiveFloat(value: string): number | undefined {
 /** What is missing before this draft can be saved, in the user's words. */
 function draftProblem(draft: Draft): string | null {
   if (!draft.name.trim()) return 'Give the job a name.';
-  if (!draft.prompt.trim()) return 'The job needs a prompt to hand the engine.';
+  if (draft.kind === 'agent' && !draft.prompt.trim()) {
+    return 'The job needs a prompt to hand the engine.';
+  }
   if (!draft.cron.trim()) return 'Enter a cron expression.';
   if (draft.conditionKind === 'file-changed' && !draft.filePath.trim()) {
     return 'Name the file to watch.';
@@ -297,6 +313,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
       timezone: draft.timezone.trim() || hostTimezone(),
       enabled: draft.enabled,
       condition,
+      kind: draft.kind,
       prompt: draft.prompt.trim(),
       engine: draft.engine.trim() || undefined,
       allowedTools: parseList(draft.allowedTools),
@@ -376,7 +393,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
       description={
         job
           ? 'Changes take effect at the next occurrence.'
-          : 'A job spawns the engine on a cron schedule — but only when its condition passes.'
+          : 'A reminder just notifies you; an agent job runs the engine on a cron schedule — but only when its condition passes.'
       }
       footer={
         <div className="flex w-full items-center gap-3">
@@ -440,15 +457,62 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
               onChange={(event) => patch({ description: event.target.value })}
             />
           </div>
-          <Textarea
-            label="Prompt"
-            required
-            rows={3}
-            value={draft.prompt}
-            placeholder="Summarise anything that arrived overnight and needs a reply."
-            hint="Handed to the engine verbatim when the job fires."
-            onChange={(event) => patch({ prompt: event.target.value })}
-          />
+
+          <Field
+            label="Kind"
+            hint={
+              draft.kind === 'reminder'
+                ? 'Just a notification. No AI, instant, free.'
+                : 'Runs the AI agent when it fires. For summaries, workflows, etc.'
+            }
+          >
+            <div className="grid grid-cols-2 gap-2">
+              {KIND_OPTIONS.map((option) => {
+                const on = draft.kind === option.value;
+                return (
+                  <Button
+                    key={option.value}
+                    variant={on ? 'primary' : 'outline'}
+                    aria-pressed={on}
+                    // Switching kind resets the missed-run policy to the
+                    // per-kind default (agent → catch-up, reminder → skip),
+                    // matching what the backend would apply on omission.
+                    onClick={() =>
+                      patch({
+                        kind: option.value,
+                        missedRunPolicy: defaultMissedRunPolicyFor(
+                          option.value,
+                        ),
+                      })
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                );
+              })}
+            </div>
+          </Field>
+
+          {draft.kind === 'agent' ? (
+            <Textarea
+              label="Prompt"
+              required
+              rows={3}
+              value={draft.prompt}
+              placeholder="Summarise anything that arrived overnight and needs a reply."
+              hint="Handed to the engine verbatim when the job fires."
+              onChange={(event) => patch({ prompt: event.target.value })}
+            />
+          ) : (
+            <Textarea
+              label="Message (optional)"
+              rows={3}
+              value={draft.prompt}
+              placeholder="What the notification says — defaults to the name."
+              hint="Shown as the notification body. No engine runs."
+              onChange={(event) => patch({ prompt: event.target.value })}
+            />
+          )}
         </section>
 
         {/* ---- when ------------------------------------------------- */}

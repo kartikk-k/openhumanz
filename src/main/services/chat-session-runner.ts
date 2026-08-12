@@ -125,7 +125,7 @@ const CHAT_SYSTEM_PROMPT =
   'You are running inside a desktop assistant app that has its own persistent ' +
   'scheduler, exposed as MCP tools. To schedule anything — reminders, ' +
   'recurring checks, one-off future tasks — you MUST use these exact tools:\n' +
-  '  • mcp__assistant__schedule_create — create a scheduled job (cron + prompt)\n' +
+  '  • mcp__assistant__schedule_create — create a scheduled job (cron + kind + prompt)\n' +
   '  • mcp__assistant__schedule_list — list scheduled jobs\n' +
   '  • mcp__assistant__schedule_update — change a job\n' +
   '  • mcp__assistant__schedule_delete — remove a job\n' +
@@ -138,7 +138,23 @@ const CHAT_SYSTEM_PROMPT =
   'once the turn ends) and do NOT use TaskCreate/TaskUpdate for reminders ' +
   '(those only track work within this session). If a schedule tool call is ' +
   'ever blocked or missing, say so plainly rather than substituting a ' +
-  'session-only alternative.\n\n' +
+  'session-only alternative.\n' +
+  'CHOOSING THE JOB KIND (schedule_create takes a `kind`):\n' +
+  '  • kind="reminder" (DEFAULT, prefer this) — fires a plain notification ' +
+  'with NO AI agent and zero token cost. Put the message the user should see ' +
+  'in `prompt` (it becomes the notification body; the `name` is the title). ' +
+  'Use this for anything whose content you already know now: "drink water", ' +
+  '"stand up", "call mom at 6pm", "meeting in 10 minutes". If the user just ' +
+  'wants to be reminded of something, it is a reminder — do NOT schedule an ' +
+  'agent to "remind" them, that wastes tokens re-deriving text you already have.\n' +
+  '  • kind="agent" — spawns the AI engine with `prompt` at fire time. Use ' +
+  'ONLY when real work must happen later that you cannot pre-write now: a ' +
+  'morning summary of overnight mail, triaging messages, browsing/fetching ' +
+  'data and writing a file, multi-step workflows. `prompt` is required and ' +
+  'should fully describe the task, since the agent runs unattended.\n' +
+  'The "run if missed" behaviour (`missedRunPolicy`) defaults sensibly per ' +
+  'kind — agent jobs catch up when the device next comes on, reminders skip. ' +
+  'Only set it explicitly if the user asks for different behaviour.\n\n' +
   // Memory: proactive capture + recall. The user wants the assistant to build a
   // memory of them over time without being asked — preferences, facts, and
   // decisions — and to use it. The engine extracts and de-duplicates the atomic

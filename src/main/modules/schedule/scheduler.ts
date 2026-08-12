@@ -41,9 +41,12 @@ import {
   ScheduleRunNowRequestSchema,
   ScheduledJobCreateSchema,
   ScheduledJobUpdateSchema,
+  DEFAULT_SCHEDULED_JOB_KIND,
+  defaultMissedRunPolicyFor,
   type CronValidation,
   type ScheduleCondition,
   type ScheduledJob,
+  type ScheduledJobKind,
   type ScheduledJobCreateInput,
   type ScheduledJobUpdate,
   type ScheduleRunNowRequestInput,
@@ -66,7 +69,6 @@ import {
 } from './store';
 import {
   systemClock,
-  DEFAULT_MISSED_RUN_POLICY,
   type CounterReader,
   type MissedRunPolicy,
   type ScheduleClock,
@@ -550,7 +552,12 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     // schema's (quota-safe) default stands.
     // `.partial()` marks it optional in the *type* even though the default
     // means it is always present at runtime — hence the final `??`.
-    const parsedPolicy = parsed.missedRunPolicy ?? DEFAULT_MISSED_RUN_POLICY;
+    const kind: ScheduledJobKind = parsed.kind ?? DEFAULT_SCHEDULED_JOB_KIND;
+    // The missed-run default depends on the kind: agent/workflow jobs catch up
+    // when the device comes back on; plain reminders skip. A caller who set the
+    // policy explicitly always wins over this per-kind default.
+    const parsedPolicy =
+      parsed.missedRunPolicy ?? defaultMissedRunPolicyFor(kind);
     const policy: MissedRunPolicy =
       (input as { missedRunPolicy?: unknown }).missedRunPolicy !== undefined
         ? parsedPolicy
@@ -567,7 +574,8 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
       recurring: parsed.recurring ?? true,
       condition_json: condition,
       missed_run_policy: policy,
-      prompt: parsed.prompt,
+      kind,
+      prompt: parsed.prompt ?? '',
       engine: parsed.engine,
       allowed_tools_json: parsed.allowedTools ?? [],
       max_turns: parsed.maxTurns,
@@ -607,6 +615,7 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     if (parsed.name !== undefined) patch.name = parsed.name;
     if (parsed.description !== undefined)
       patch.description = parsed.description;
+    if (parsed.kind !== undefined) patch.kind = parsed.kind;
     if (parsed.prompt !== undefined) patch.prompt = parsed.prompt;
     if (parsed.engine !== undefined) patch.engine = parsed.engine;
     if (parsed.allowedTools !== undefined) {

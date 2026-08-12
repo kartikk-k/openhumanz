@@ -16,6 +16,7 @@ import type { Db, Migration, SqlParam } from '../../infra/db';
 import {
   ScheduleConditionSchema,
   ScheduledJobSchema,
+  DEFAULT_SCHEDULED_JOB_KIND,
   type ScheduleCondition,
   type ScheduledJob,
 } from '../../../shared/schedule';
@@ -101,6 +102,19 @@ export const migrations: Migration[] = [
          ADD COLUMN recurring INTEGER NOT NULL DEFAULT 1;`,
     ],
   },
+  {
+    id: '003_kind',
+    description:
+      'job kind: `reminder` (notify only, no engine) vs `agent` (spawns engine)',
+    up: [
+      // Every job that existed before this migration had a required prompt and
+      // spawned the engine, i.e. it was an agent job — so default 'agent'
+      // preserves their behaviour exactly. New jobs default to 'reminder' at
+      // the schema layer; only the historical rows are pinned here.
+      `ALTER TABLE schedule_jobs
+         ADD COLUMN kind TEXT NOT NULL DEFAULT 'agent';`,
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -118,6 +132,7 @@ interface JobRow {
   recurring: number;
   condition_json: string;
   missed_run_policy: string;
+  kind: string;
   prompt: string;
   engine: string | null;
   allowed_tools_json: string;
@@ -184,6 +199,9 @@ export function rowToJob(row: JobRow): ScheduledJob {
     // Older rows (pre-002 migration) have no column; treat absent as recurring.
     recurring: row.recurring === undefined ? true : row.recurring !== 0,
     condition: condition.success ? condition.data : { kind: 'always' },
+    // Absent (pre-003 rows read through an older path) → 'agent', matching the
+    // migration default: everything before the split was an agent job.
+    kind: row.kind ?? 'agent',
     prompt: row.prompt,
     engine: row.engine ?? undefined,
     allowedTools: parseJson<string[]>(row.allowed_tools_json, []),
@@ -251,7 +269,8 @@ const COLUMNS = {
   recurring: (v: unknown) => (v === undefined || v ? 1 : 0),
   condition_json: (v: unknown) => JSON.stringify(v ?? { kind: 'always' }),
   missed_run_policy: (v: unknown) => String(v ?? DEFAULT_MISSED_RUN_POLICY),
-  prompt: (v: unknown) => String(v),
+  kind: (v: unknown) => String(v ?? DEFAULT_SCHEDULED_JOB_KIND),
+  prompt: (v: unknown) => String(v ?? ''),
   engine: (v: unknown) => (v === undefined || v === null ? null : String(v)),
   allowed_tools_json: (v: unknown) => JSON.stringify(v ?? []),
   max_turns: (v: unknown) => (v === undefined || v === null ? null : Number(v)),
@@ -277,7 +296,7 @@ type Column = keyof typeof COLUMNS;
 export type JobPatch = Partial<Record<Column, unknown>>;
 
 const SELECT_JOB = `SELECT id, name, description, cron, timezone, human_readable,
-    enabled, recurring, condition_json, missed_run_policy, prompt, engine,
+    enabled, recurring, condition_json, missed_run_policy, kind, prompt, engine,
     allowed_tools_json, max_turns, max_cost_usd, next_run_at, last_run_at,
     last_run_id, last_status, last_skip_reason, created_at, updated_at,
     metadata_json

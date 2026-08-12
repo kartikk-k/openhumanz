@@ -307,19 +307,45 @@ export async function bootstrap(): Promise<AppServices> {
 
   configureRuns({ launcher: orchestrator, sink: { send } });
 
-  // The scheduler already evaluated its own deterministic condition before
-  // emitting. Passing an explicit `() => true` keeps that visible in review
-  // rather than implicit — nothing starts a CLI invocation uncondionally.
+  // OS notifications: tell the user when a scheduled reminder has run, a run
+  // finishes (if they opted in), or an approval is waiting. Reads the live
+  // settings on each event, so toggling notifications takes effect at once.
+  // Created BEFORE the schedule:due handler because that handler now calls
+  // `notify()` directly for reminder jobs.
+  const notificationService = createNotificationService({
+    events: appEvents,
+    settings: getSettingsStore(),
+    runs: getRunStore(),
+    logger: logger.child('notifications'),
+  });
+  notificationService.start();
+
+  // A scheduled job came due. Two kinds, two paths:
   //
-  // Load the job so the run carries its real prompt and settings. Without this
-  // the run spawned with an empty prompt and no job linkage, so a fired
-  // reminder did nothing.
+  //  - `reminder` → post the notification directly and STOP. No engine spawns,
+  //    so a recurring "drink water" reminder costs zero tokens. The title is
+  //    the job name and the body is its (optional) pre-filled prompt.
+  //  - `agent`    → spawn the engine with the job's prompt, exactly as before,
+  //    for work that must be *done* at run time (summaries, triage, workflows).
+  //
+  // The scheduler already evaluated its deterministic condition before emitting;
+  // the explicit `() => true` keeps that visible rather than implicit.
   appEvents.on('schedule:due', ({ jobId }) => {
     const job = scheduleModule.scheduler.get(jobId);
     if (!job) {
       logger.warn('scheduled job fired but was not found', { jobId });
       return;
     }
+
+    if (job.kind === 'reminder') {
+      // Body is the pre-filled prompt if present, else a minimal fallback so
+      // the banner is never empty. No engine, no run, no tokens.
+      const body = job.prompt.trim() || job.description.trim() || job.name;
+      notificationService.notify(job.name, body);
+      logger.info('reminder fired (no engine)', { jobId, name: job.name });
+      return;
+    }
+
     void orchestrator
       .startIfCondition({
         request: {
@@ -339,20 +365,6 @@ export async function bootstrap(): Promise<AppServices> {
   });
 
   bridgeEventsToRenderer();
-
-  // OS notifications: tell the user when a scheduled reminder has run, a run
-  // finishes (if they opted in), or an approval is waiting. Reads the live
-  // settings on each event, so toggling notifications takes effect at once.
-  const notificationService = createNotificationService({
-    events: appEvents,
-    settings: getSettingsStore(),
-    runs: getRunStore(),
-    logger: logger.child('notifications'),
-  });
-  notificationService.start();
-  // Fire one priming notification so macOS shows its permission dialog on first
-  // launch — otherwise it never prompts and silently drops every later reminder.
-  notificationService.primePermission();
 
   // Composio: open consent URLs in the system browser, seed the key from
   // settings, and persist it back when the user changes it in the UI.

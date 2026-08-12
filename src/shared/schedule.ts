@@ -69,6 +69,38 @@ export function isMissedRunPolicy(value: unknown): value is MissedRunPolicy {
   );
 }
 
+export const SCHEDULED_JOB_KINDS = ['reminder', 'agent'] as const;
+/**
+ * What a job does when it fires.
+ *
+ * - `reminder` — post an OS notification directly and stop. NO engine is
+ *   spawned, so it costs zero tokens. The title is the job name; the body is
+ *   the (optional) prompt. This is the right kind for "drink water", one-shot
+ *   pings, and anything whose content is already known at creation time.
+ * - `agent`    — spawn the engine with `prompt` when the job fires. This is for
+ *   work that must actually be *done* at run time (a morning summary, mail
+ *   triage, a browse-and-write workflow). `prompt` is required for this kind.
+ *
+ * Splitting the two is the whole point: the old model spawned an agent for
+ * every job, so a recurring "drink water" reminder burned tokens on every tick.
+ */
+export const ScheduledJobKindSchema = z.enum(SCHEDULED_JOB_KINDS);
+export type ScheduledJobKind = z.infer<typeof ScheduledJobKindSchema>;
+
+export const DEFAULT_SCHEDULED_JOB_KIND: ScheduledJobKind = 'reminder';
+
+/**
+ * The per-kind default for the "run if missed (when the device comes back on)"
+ * behaviour. Agent/workflow jobs should catch up — a morning summary the app
+ * missed while asleep is still wanted when it wakes. Plain reminders should
+ * not: a "drink water" ping missed at 3pm firing at 6pm is just noise.
+ */
+export function defaultMissedRunPolicyFor(
+  kind: ScheduledJobKind,
+): MissedRunPolicy {
+  return kind === 'agent' ? 'catch-up' : 'skip';
+}
+
 export const ScheduledJobSchema = z.object({
   id: IdSchema,
   name: z.string().min(1),
@@ -88,8 +120,17 @@ export const ScheduledJobSchema = z.object({
    */
   recurring: z.boolean().default(true),
   condition: ScheduleConditionSchema.default({ kind: 'always' }),
-  /** Prompt handed to the engine when the job fires. */
-  prompt: z.string().min(1),
+  /**
+   * What the job does when it fires. See {@link ScheduledJobKindSchema}.
+   * `reminder` posts a notification with no engine; `agent` spawns the engine.
+   */
+  kind: ScheduledJobKindSchema.default(DEFAULT_SCHEDULED_JOB_KIND),
+  /**
+   * For `agent` jobs: the prompt handed to the engine when the job fires.
+   * For `reminder` jobs: optional notification body (the title is the job name).
+   * Required only for `agent` kind — enforced by the refinement below.
+   */
+  prompt: z.string().default(''),
   engine: z.string().optional(),
   allowedTools: z.array(z.string()).default([]),
   maxTurns: z.number().int().positive().optional(),
@@ -108,6 +149,25 @@ export const ScheduledJobSchema = z.object({
 });
 export type ScheduledJob = z.infer<typeof ScheduledJobSchema>;
 
+/**
+ * An `agent` job with no prompt would spawn the engine with nothing to do, so
+ * the prompt is required for that kind. `reminder` jobs may omit it (the body
+ * is then just the job name). This is a shared refinement so create and the
+ * store's persisted shape enforce it identically.
+ */
+function requireAgentPrompt(
+  value: { kind?: ScheduledJobKind; prompt?: string },
+  ctx: z.RefinementCtx,
+): void {
+  if (value.kind === 'agent' && (!value.prompt || value.prompt.trim() === '')) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['prompt'],
+      message: 'An agent job needs a prompt describing what to do.',
+    });
+  }
+}
+
 export const ScheduledJobCreateSchema = ScheduledJobSchema.omit({
   id: true,
   createdAt: true,
@@ -118,16 +178,20 @@ export const ScheduledJobCreateSchema = ScheduledJobSchema.omit({
   lastStatus: true,
   lastSkipReason: true,
   humanReadable: true,
-}).partial({
-  description: true,
-  timezone: true,
-  enabled: true,
-  recurring: true,
-  condition: true,
-  allowedTools: true,
-  metadata: true,
-  missedRunPolicy: true,
-});
+})
+  .partial({
+    description: true,
+    timezone: true,
+    enabled: true,
+    recurring: true,
+    condition: true,
+    kind: true,
+    prompt: true,
+    allowedTools: true,
+    metadata: true,
+    missedRunPolicy: true,
+  })
+  .superRefine(requireAgentPrompt);
 export type ScheduledJobCreate = z.infer<typeof ScheduledJobCreateSchema>;
 export type ScheduledJobCreateInput = z.input<typeof ScheduledJobCreateSchema>;
 

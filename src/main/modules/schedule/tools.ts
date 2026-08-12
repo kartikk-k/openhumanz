@@ -17,6 +17,7 @@
 import { z } from 'zod';
 import {
   ScheduleConditionSchema,
+  SCHEDULED_JOB_KINDS,
   type ScheduledJob,
 } from '../../../shared/schedule';
 import { defineTool, type AnyToolDefinition } from '../types';
@@ -25,15 +26,6 @@ import { describeCron } from './describe';
 import { MISSED_RUN_POLICIES } from './types';
 import { missedRunPolicyOf } from './store';
 import type { Scheduler } from './scheduler';
-
-const MissedRunPolicySchema = z
-  .enum(MISSED_RUN_POLICIES)
-  .default('skip')
-  .describe(
-    'What to do with an occurrence that came due while the app was closed. ' +
-      '"skip" records the miss and waits for the next one; "catch-up" runs it ' +
-      'once on relaunch.',
-  );
 
 const CronField = z
   .string()
@@ -60,6 +52,7 @@ function compactJob(job: ScheduledJob): Record<string, unknown> {
   return {
     id: job.id,
     name: job.name,
+    kind: job.kind,
     schedule: job.humanReadable || describeCron(job.cron, job.timezone),
     cron: job.cron,
     timezone: job.timezone,
@@ -78,34 +71,74 @@ function compactJob(job: ScheduledJob): Record<string, unknown> {
 /* Input schemas                                                       */
 /* ------------------------------------------------------------------ */
 
-const CreateInput = z.object({
-  name: z.string().min(1).describe('Short label shown in the jobs table.'),
-  cron: CronField,
-  prompt: z
-    .string()
-    .min(1)
-    .describe('The prompt handed to the engine when the job fires.'),
-  description: z.string().default(''),
-  timezone: z
-    .string()
-    .optional()
-    .describe('IANA timezone, e.g. "Europe/Lisbon". Defaults to this machine.'),
-  condition: ConditionField.default({ kind: 'always' }),
-  missedRunPolicy: MissedRunPolicySchema,
-  enabled: z.boolean().default(true),
-  recurring: z
-    .boolean()
-    .default(true)
-    .describe(
-      'Whether the job repeats. Set false for a one-time reminder — it fires ' +
-        'once at the next cron occurrence and is then disabled (kept in the ' +
-        'list as history, not deleted).',
-    ),
-  engine: z.string().optional(),
-  allowedTools: z.array(z.string()).default([]),
-  maxTurns: z.number().int().positive().optional(),
-  maxCostUsd: z.number().positive().optional(),
-});
+const CreateInput = z
+  .object({
+    name: z.string().min(1).describe('Short label shown in the jobs table.'),
+    cron: CronField,
+    kind: z
+      .enum(SCHEDULED_JOB_KINDS)
+      .default('reminder')
+      .describe(
+        'What the job does when it fires. "reminder" just posts a ' +
+          'notification (title = name, body = prompt) with NO AI agent and no ' +
+          'token cost — use this for simple pings like "drink water" or any ' +
+          'one-off reminder whose text you already know now. "agent" spawns ' +
+          'the AI engine with the prompt when it fires — use this only when ' +
+          'work must actually be done at run time (a morning summary, mail ' +
+          'triage, a browse-and-write workflow). Prefer "reminder" unless the ' +
+          'job genuinely needs to think or act later.',
+      ),
+    prompt: z
+      .string()
+      .default('')
+      .describe(
+        'For "agent": the prompt handed to the engine when the job fires ' +
+          '(required). For "reminder": the notification body text to show the ' +
+          'user (optional — falls back to the job name).',
+      ),
+    description: z.string().default(''),
+    timezone: z
+      .string()
+      .optional()
+      .describe(
+        'IANA timezone, e.g. "Europe/Lisbon". Defaults to this machine.',
+      ),
+    condition: ConditionField.default({ kind: 'always' }),
+    // Optional with NO default on purpose: when the caller omits it, the
+    // scheduler applies the per-kind default (agent → catch-up, reminder →
+    // skip). A `.default(...)` here would erase that distinction.
+    missedRunPolicy: z
+      .enum(MISSED_RUN_POLICIES)
+      .optional()
+      .describe(
+        'What to do with an occurrence missed while the app was closed. ' +
+          '"catch-up" runs it once when the device comes back on; "skip" ' +
+          'ignores it. If omitted, agent jobs default to catch-up and ' +
+          'reminders to skip.',
+      ),
+    enabled: z.boolean().default(true),
+    recurring: z
+      .boolean()
+      .default(true)
+      .describe(
+        'Whether the job repeats. Set false for a one-time reminder — it ' +
+          'fires once at the next cron occurrence and is then disabled (kept ' +
+          'in the list as history, not deleted).',
+      ),
+    engine: z.string().optional(),
+    allowedTools: z.array(z.string()).default([]),
+    maxTurns: z.number().int().positive().optional(),
+    maxCostUsd: z.number().positive().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.kind === 'agent' && value.prompt.trim() === '') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['prompt'],
+        message: 'An "agent" job needs a prompt describing what to do.',
+      });
+    }
+  });
 type CreateArgs = z.infer<typeof CreateInput>;
 
 const ListInput = z.object({
@@ -118,6 +151,10 @@ const UpdateInput = z.object({
   id: z.string().min(1),
   name: z.string().min(1).optional(),
   cron: CronField.optional(),
+  kind: z
+    .enum(SCHEDULED_JOB_KINDS)
+    .optional()
+    .describe('Switch between "reminder" (notify only) and "agent" (runs AI).'),
   prompt: z.string().min(1).optional(),
   description: z.string().optional(),
   timezone: z.string().optional(),
@@ -161,9 +198,11 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
   const create = defineTool<CreateArgs>({
     name: 'schedule_create',
     description:
-      'Create a scheduled job. Give a cron expression (no natural-language ' +
-      'dates) and a condition that must pass before the job is allowed to ' +
-      'spawn a run. The cron is validated and returned in English.',
+      'Create a scheduled job. Choose kind="reminder" for a plain notification ' +
+      '(no AI, no tokens — for "drink water", pings, one-off reminders) or ' +
+      'kind="agent" for work that must run the AI engine at fire time ' +
+      '(summaries, triage, workflows; needs a prompt). Give a cron expression ' +
+      '(no natural-language dates); it is validated and returned in English.',
     inputSchema: CreateInput,
     sideEffecting: true,
     annotations: { title: 'Create scheduled job' },
@@ -173,8 +212,12 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
       const gate = parsed.success
         ? describeCondition(parsed.data)
         : 'always (no precondition)';
+      if (input.kind === 'reminder') {
+        const body = input.prompt.trim() || input.name;
+        return `Create reminder "${input.name}" — ${when}. Notifies: "${truncate(body)}"`;
+      }
       return (
-        `Create scheduled job "${input.name}" — ${when}, ${gate}. ` +
+        `Create agent job "${input.name}" — ${when}, ${gate}. ` +
         `It will run: "${truncate(input.prompt)}"`
       );
     },
@@ -184,6 +227,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         description: input.description,
         cron: input.cron,
         timezone: input.timezone,
+        kind: input.kind,
         prompt: input.prompt,
         condition: input.condition,
         enabled: input.enabled,
@@ -192,7 +236,11 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         allowedTools: input.allowedTools,
         maxTurns: input.maxTurns,
         maxCostUsd: input.maxCostUsd,
-        missedRunPolicy: input.missedRunPolicy,
+        // Only forward when the caller actually chose one, so the scheduler's
+        // per-kind default (agent→catch-up, reminder→skip) applies on omission.
+        ...(input.missedRunPolicy !== undefined
+          ? { missedRunPolicy: input.missedRunPolicy }
+          : {}),
       });
       return compactJob(job);
     },
@@ -257,6 +305,7 @@ export function createTools(scheduler: Scheduler): AnyToolDefinition[] {
         description: input.description,
         cron: input.cron,
         timezone: input.timezone,
+        kind: input.kind,
         prompt: input.prompt,
         condition: input.condition,
         enabled: input.enabled,

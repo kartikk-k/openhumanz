@@ -86,13 +86,11 @@ export interface NotificationService {
   /** Attach the bus listeners. Call once from bootstrap. */
   start(): void;
   /**
-   * Fire a one-time priming notification so macOS surfaces its permission
-   * dialog on first launch. Until *something* calls `Notification.show()`,
-   * macOS never prompts and never registers the app under System Settings ›
-   * Notifications, so every later reminder is silently dropped. Called once
-   * from bootstrap.
+   * Post a notification directly with a title and body. Used by the scheduler
+   * for `reminder` jobs, which must NOT spawn the engine — they just show the
+   * user the pre-filled message. Zero tokens, no run.
    */
-  primePermission(): void;
+  notify(title: string, body: string): void;
 }
 
 export function createNotificationService(
@@ -293,12 +291,8 @@ export function createNotificationService(
         void onApproval(payload);
       });
     },
-    primePermission() {
-      // A quiet, self-dismissing hello. Its only job is to be the first
-      // Notification.show() of the process so macOS pops the authorization
-      // prompt (and lists the app under System Settings › Notifications). We
-      // keep it silent so it isn't obnoxious on every launch.
-      showNotification('Assistant is ready', 'Notifications are enabled.');
+    notify(title: string, body: string) {
+      showNotification(title, body);
     },
   };
 }
