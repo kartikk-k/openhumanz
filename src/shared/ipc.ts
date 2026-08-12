@@ -545,6 +545,8 @@ export interface VoiceTranscribeRequest {
   mimeType: string;
   /** Optional BCP-47 language hint (e.g. 'en') to improve accuracy. */
   language?: string;
+  /** Optional vocabulary/context hint sent to the transcriber to bias spelling of names/jargon. */
+  prompt?: string;
 }
 
 /** Transcription outcome. `text` is empty when nothing was heard. */

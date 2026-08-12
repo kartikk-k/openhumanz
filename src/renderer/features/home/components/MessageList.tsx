@@ -41,6 +41,8 @@ export function MessageList({
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el || !stickRef.current) return;
+    // Smoothly follow new content to the bottom. CSS `scroll-behavior: smooth`
+    // (on the container below) makes this assignment ease instead of jumping.
     el.scrollTop = el.scrollHeight;
   }, [sig, scrollRef]);
 
@@ -58,13 +60,14 @@ export function MessageList({
       className="absolute inset-0 z-20 overflow-y-auto"
       style={{
         scrollbarWidth: 'none',
+        scrollBehavior: 'smooth',
         // Fade the chat text out toward the bottom (where the orb sits) using an
         // alpha mask — a real clip/fade, NOT a blur. The fade starts higher up
         // (~55%) and ramps over a taller band so more of the bottom dissolves.
         maskImage:
-          'linear-gradient(to bottom, black 0%, black 55%, rgba(0,0,0,0.35) 78%, transparent 96%)',
+          'linear-gradient(to bottom, black 0%, black 55%, rgba(0,0,0,0.35) 78%, transparent 92%)',
         WebkitMaskImage:
-          'linear-gradient(to bottom, black 0%, black 55%, rgba(0,0,0,0.35) 78%, transparent 96%)',
+          'linear-gradient(to bottom, black 0%, black 55%, rgba(0,0,0,0.35) 78%, transparent 92%)',
       }}
     >
       <div className="mx-auto flex w-full max-w-[min(760px,92vw)] flex-col gap-4 px-6 pb-[40vh] pt-[12vh]">
@@ -81,7 +84,13 @@ export function MessageList({
           ) : (
             <div key={turn.id} className="flex justify-start">
               <div className="w-full max-w-[92%] text-[15px] leading-relaxed text-white/90">
-                <HomeAssistantBlocks blocks={turn.blocks} />
+                {/* animate only the LIVE streaming turn; settled turns render
+                    static so they don't re-fade when the durable transcript
+                    replaces the live one on completion. */}
+                <HomeAssistantBlocks
+                  blocks={turn.blocks}
+                  animate={turn.animate && !turn.done}
+                />
               </div>
             </div>
           ),

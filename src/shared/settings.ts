@@ -120,6 +120,10 @@ export const VoiceSettingsSchema = z.object({
   openaiApiKey: z.string().default(''),
   /** Transcription model. gpt-4o-transcribe is newer/better than whisper-1. */
   transcribeModel: z.string().default('gpt-4o-transcribe'),
+  /** BCP-47 transcription language. Empty means auto-detect. */
+  language: z.string().default(''),
+  /** Optional vocabulary/context hint to bias transcription. */
+  prompt: z.string().default(''),
 });
 export type VoiceSettings = z.infer<typeof VoiceSettingsSchema>;
 

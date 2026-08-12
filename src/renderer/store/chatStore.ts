@@ -48,6 +48,8 @@ interface ChatSlice {
   loadTranscript: (sessionId?: string | null) => Promise<void>;
   send: (prompt: string, surface?: 'home' | 'chat') => Promise<void>;
   newChat: () => Promise<void>;
+  /** Cancel the in-flight turn (Esc). */
+  cancel: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   /** Apply a `push:chat-updated` payload. */
   applyUpdate: (payload: {
@@ -159,6 +161,13 @@ export const useChatStore = create<ChatSlice>((set, get) => ({
     await get().refreshSessions();
   },
 
+  cancel: async () => {
+    if (!get().busy) return;
+    // optimistic: unlock the UI immediately; main aborts the turn.
+    set({ busy: false, liveTurn: null });
+    await callReply(IPC.chat.cancel, {});
+  },
+
   selectSession: async (sessionId) => {
     await call(IPC.chat.selectSession, { sessionId });
     set({
@@ -171,6 +180,20 @@ export const useChatStore = create<ChatSlice>((set, get) => ({
 
   applyUpdate: (payload) => {
     set({ busy: payload.busy });
+    // A null sessionId means a fresh, empty session (e.g. "New chat"): there is
+    // nothing to load, and reloading would resolve back to the PREVIOUS session
+    // and clobber the just-cleared UI (the "click New chat twice" bug). Just
+    // show an empty conversation.
+    if (payload.sessionId === null) {
+      set({
+        currentSessionId: null,
+        transcript: { sessionId: null, title: null, turns: [], busy: false },
+        pendingUserMessage: null,
+        liveTurn: null,
+      });
+      if (payload.sessionsChanged) void get().refreshSessions();
+      return;
+    }
     // Re-read the transcript for the affected session; also refresh the list
     // when the session set changed (new/selected/renamed).
     void get()

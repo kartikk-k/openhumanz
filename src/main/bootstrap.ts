@@ -368,6 +368,8 @@ export async function bootstrap(): Promise<AppServices> {
       return {
         apiKey: settings.voice?.openaiApiKey ?? '',
         model: settings.voice?.transcribeModel || 'gpt-4o-transcribe',
+        language: settings.voice?.language ?? '',
+        prompt: settings.voice?.prompt ?? '',
       };
     },
   });

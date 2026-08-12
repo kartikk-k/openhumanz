@@ -20,16 +20,40 @@ import { useHoldToTalk } from './hooks/useHoldToTalk';
 import { MessageList } from './components/MessageList';
 import { Composer } from './components/Composer';
 import { VoiceStatus } from './components/VoiceStatus';
-import { ActivityChip } from './components/ActivityChip';
 import { Greeting } from './components/ambient/Greeting';
-import { CENTER_AMBIENT } from './lib/turns';
 import { call } from '../../lib/ipc';
 import { IPC } from '../../../shared/ipc';
 import { useChatStore } from '../../store';
 
-// orb positions (WebGL UV: y=1 top, y=0 bottom).
-const CENTER_SPEAKING: [number, number] = [0.5, 0.5]; // big, centered (voice)
-const CENTER_TOPRIGHT: [number, number] = [0.9, 0.85]; // resting in a chat
+/**
+ * Orb positions as EXACT pixel offsets from a corner (like Tailwind's
+ * `top-4 right-4`), instead of vague UV fractions. `centered` puts the orb dead
+ * center. Everything else anchors the orb's CENTER `px` from the named edges.
+ * `toUv` converts to the [x,y] fraction GlassOrb wants for the current window
+ * size — so the position stays exact at any size, and GlassOrb still eases the
+ * move (animated).
+ */
+type OrbAnchor =
+  | { centered: true }
+  | { top?: number; bottom?: number; left?: number; right?: number };
+
+// px from the edges to the orb's CENTER when resting in a chat (top-right).
+const REST_ANCHOR: OrbAnchor = { top: 72, right: 72 };
+const SPEAKING_ANCHOR: OrbAnchor = { centered: true };
+const AMBIENT_ANCHOR: OrbAnchor = { centered: true };
+
+/** Convert a corner-anchored px position to the orb's UV center [x, y]. */
+function toUv(a: OrbAnchor, w: number, h: number): [number, number] {
+  if ('centered' in a) return [0.5, 0.5];
+  let x = 0.5;
+  let y = 0.5;
+  if (a.left != null) x = a.left / w;
+  else if (a.right != null) x = 1 - a.right / w;
+  // CSS top → smaller UV y is lower, so top offset maps to (1 - top/h).
+  if (a.top != null) y = 1 - a.top / h;
+  else if (a.bottom != null) y = a.bottom / h;
+  return [x, y];
+}
 
 export function ChatExperience() {
   const [listening, setListening] = useState(false);
@@ -58,6 +82,18 @@ export function ChatExperience() {
     onVoiceError: setVoiceError,
   });
 
+  // window size, so exact px orb anchors convert to UV correctly on resize.
+  const [win, setWin] = useState<{ w: number; h: number }>(() => ({
+    w: typeof window === 'undefined' ? 1440 : window.innerWidth,
+    h: typeof window === 'undefined' ? 900 : window.innerHeight,
+  }));
+  useEffect(() => {
+    const onResize = () =>
+      setWin({ w: window.innerWidth, h: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   // clear a stale voice error as soon as the user types.
   useEffect(() => {
     if (chat.draft && voiceError) setVoiceError(null);
@@ -65,6 +101,26 @@ export function ChatExperience() {
 
   const openMicSettings = useCallback(() => {
     void call(IPC.system.openMicSettings, {});
+  }, []);
+
+  // Cmd/Ctrl+N → new chat. Esc → cancel the ongoing turn (like the terminal).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        void useChatStore.getState().newChat();
+        return;
+      }
+      if (e.key === 'Escape') {
+        const st = useChatStore.getState();
+        if (st.busy) {
+          e.preventDefault();
+          void st.cancel();
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   const hasChat = chat.inChat;
@@ -95,24 +151,20 @@ export function ChatExperience() {
         // it's a big centered voice overlay.
         // eslint-disable-next-line no-nested-ternary
         size={listening ? 320 : hasChat ? 90 : 260}
-        center={
+        // exact px-anchored position → UV; GlassOrb eases the move (animated).
+        center={toUv(
           // eslint-disable-next-line no-nested-ternary
-          listening
-            ? CENTER_SPEAKING
-            : hasChat
-              ? CENTER_TOPRIGHT
-              : CENTER_AMBIENT
-        }
+          listening ? SPEAKING_ANCHOR : hasChat ? REST_ANCHOR : AMBIENT_ANCHOR,
+          win.w,
+          win.h,
+        )}
         levelRef={listening ? micLevel : undefined}
         controls={false}
       />
 
-      {/* ── activity chip (top-right) while tools run ── */}
-      <ActivityChip blocks={chat.liveBlocks} running={chat.liveRunning} />
-
-      {/* ── new-chat, top-right ── */}
+      {/* ── new-chat ── */}
       {!chat.storeBusy && !listening && chat.turns.length > 0 && (
-        <div className="fixed right-4 top-4 z-40">
+        <div className="fixed bottom-4 left-4 z-40">
           <button
             type="button"
             onClick={() => {

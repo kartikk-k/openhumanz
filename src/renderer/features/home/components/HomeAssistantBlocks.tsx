@@ -1,19 +1,20 @@
 /**
- * HomeAssistantBlocks — renders an assistant turn's blocks for the home screen.
+ * HomeAssistantBlocks — renders an assistant turn for the home screen.
  *
  * A real Claude Code turn is multi-block: markdown prose, collapsible thinking,
  * and tool calls (each with input/result and, for the Task tool, a nested
  * sub-agent). The chat tab renders these via ChatTurnView; this is the home
- * equivalent — same structure, but styled for the dark ambient look and with a
- * response-length font scale so a short reply reads large and a long one settles
- * to a comfortable reading size. Tool calls / thinking / sub-agents are
- * collapsed by default.
+ * equivalent, dark-styled, with tool calls / thinking / sub-agents collapsed.
  *
- * Deliberately separate from the chat tab's ChatTurnView (which stays untouched).
- * Markdown hierarchy (headings, bold, quotes, lists, code) is preserved via the
- * shared, streaming-safe <Markdown> renderer, which already handles dark mode.
+ * STREAMING: the WHOLE turn is rendered by a single flowtoken `AnimatedMarkdown`
+ * so everything — prose, headings, lists, AND the tool-call/thinking chips —
+ * streams in as one smooth flow. We serialize the blocks into one markdown
+ * string where tool/thinking blocks become custom `<homeblock/>` tags, and map
+ * those tags to real components via flowtoken's `customComponents`. Because it
+ * diffs `content` (sep="diff"), only NEW tokens animate as the turn grows — no
+ * per-block pop-in, no remount.
  */
-import { useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   Brain,
   CheckCircle2,
@@ -22,7 +23,8 @@ import {
   XCircle,
   Bot,
 } from 'lucide-react';
-import { HomeMarkdown } from './HomeMarkdown';
+import { AnimatedMarkdown } from 'flowtoken';
+import 'flowtoken/dist/styles.css';
 import type {
   ChatBlock,
   ChatToolCall,
@@ -44,24 +46,19 @@ function stringifyInput(input: unknown): string {
   }
 }
 
-/**
- * Font scale for the whole answer, by total text length. Short answers read
- * large and confident; long ones settle to a comfortable reading size. Markdown
- * hierarchy (h1/h2/bold) is applied RELATIVE to this base inside <Markdown>, so
- * headings stay proportionally larger than body at every scale.
- */
+/** Font scale for the whole answer, by total text length. */
 function baseFontPx(textLength: number): number {
-  if (textLength <= 80) return 30; // a sentence or two — hero-ish
+  if (textLength <= 80) return 30;
   if (textLength <= 220) return 24;
   if (textLength <= 500) return 20;
   if (textLength <= 1000) return 18;
-  return 16; // long, reading-comfortable
+  return 16;
 }
 
 function HomeThinkingBlock({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.04]">
+    <div className="my-2 rounded-xl border border-white/10 bg-white/[0.04]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -102,7 +99,7 @@ function HomeToolCall({ call }: { call: ChatToolCall }) {
     Boolean(inputStr) || Boolean(call.result) || Boolean(call.subagent);
 
   return (
-    <div className="rounded-xl border border-white/10 bg-white/[0.04]">
+    <div className="my-2 rounded-xl border border-white/10 bg-white/[0.04]">
       <button
         type="button"
         onClick={() => hasDetail && setOpen((v) => !v)}
@@ -155,9 +152,9 @@ function HomeToolCall({ call }: { call: ChatToolCall }) {
                 subagent{call.subagent.name ? `: ${call.subagent.name}` : ''}
               </div>
               <div className="flex flex-col gap-1.5 border-l-2 border-white/10 pl-2">
-                {call.subagent.blocks.map((block, i) => (
+                {call.subagent.blocks.map((b, i) => (
                   // eslint-disable-next-line react/no-array-index-key
-                  <HomeBlock key={i} block={block} />
+                  <SubBlock key={i} block={b} />
                 ))}
               </div>
             </div>
@@ -168,40 +165,90 @@ function HomeToolCall({ call }: { call: ChatToolCall }) {
   );
 }
 
-function HomeBlock({ block }: { block: ChatBlock }) {
-  if (block.kind === 'text') {
-    return (
-      <div data-selectable className="leading-relaxed text-white/90">
-        <HomeMarkdown>{block.text}</HomeMarkdown>
-      </div>
-    );
-  }
-  if (block.kind === 'thinking') {
-    return <HomeThinkingBlock text={block.text} />;
-  }
-  return <HomeToolCall call={block.call} />;
+/** A block inside a sub-agent (tool / thinking / plain text). */
+function SubBlock({ block }: { block: ChatBlock }) {
+  if (block.kind === 'tool') return <HomeToolCall call={block.call} />;
+  if (block.kind === 'thinking') return <HomeThinkingBlock text={block.text} />;
+  return <div className="whitespace-pre-wrap text-white/70">{block.text}</div>;
 }
 
 /**
- * Render an assistant message's blocks in the home style. The whole block sizes
- * its base font by total text length; markdown headings/bold scale relative to
- * that. Left-aligned prose in a centered reading column.
+ * Serialize the turn's blocks into one markdown string for AnimatedMarkdown.
+ * Text blocks pass through verbatim; tool/thinking blocks become a custom
+ * self-closing tag referencing the block by index, resolved by customComponents.
+ * Returns the string plus the ordered non-text blocks it referenced.
  */
-export function HomeAssistantBlocks({ blocks }: { blocks: ChatBlock[] }) {
+function serialize(blocks: ChatBlock[]): {
+  content: string;
+  chips: ChatBlock[];
+} {
+  const chips: ChatBlock[] = [];
+  const parts: string[] = [];
+  blocks.forEach((block) => {
+    if (block.kind === 'text') {
+      parts.push(block.text);
+    } else {
+      const idx = chips.length;
+      chips.push(block);
+      // custom tag on its own lines so markdown treats it as a block.
+      parts.push(`\n\n<homeblock idx="${idx}"></homeblock>\n\n`);
+    }
+  });
+  return { content: parts.join(''), chips };
+}
+
+export function HomeAssistantBlocks({
+  blocks,
+  animate = true,
+}: {
+  blocks: ChatBlock[];
+  /** false for settled turns — render static so they don't re-fade. */
+  animate?: boolean;
+}) {
   const textLength = blocks
     .filter((b): b is Extract<ChatBlock, { kind: 'text' }> => b.kind === 'text')
     .reduce((n, b) => n + b.text.length, 0);
   const fontSize = baseFontPx(textLength);
 
+  const { content, chips } = serialize(blocks);
+
+  // Keep the current chips in a ref so the customComponents object (and the tag
+  // component's type) stays STABLE across renders — otherwise flowtoken would
+  // remount the chips on every streamed token.
+  const chipsRef = useRef<ChatBlock[]>(chips);
+  chipsRef.current = chips;
+
+  // Resolve a <homeblock idx="N"/> tag to its tool/thinking chip. Memoized with
+  // a chips ref so the component type is stable (no remount on stream tokens).
+  const components = useMemo(
+    () => ({
+      // eslint-disable-next-line react/no-unstable-nested-components, react/no-unused-prop-types
+      homeblock: ({ idx }: { idx?: string }) => {
+        const block = chipsRef.current[Number(idx)];
+        if (block?.kind === 'thinking')
+          return <HomeThinkingBlock text={block.text} />;
+        if (block?.kind === 'tool') return <HomeToolCall call={block.call} />;
+        return null;
+      },
+    }),
+    [],
+  );
+
   return (
     <div
-      className="flex w-full flex-col gap-3 text-left"
-      style={{ fontSize, lineHeight: 1.4 }}
+      className="ft-markdown flex w-full flex-col text-left text-white/90"
+      style={{ fontSize, lineHeight: 1.5 }}
     >
-      {blocks.map((block, i) => (
-        // eslint-disable-next-line react/no-array-index-key
-        <HomeBlock key={i} block={block} />
-      ))}
+      <AnimatedMarkdown
+        content={content}
+        sep="word"
+        // null animation = render immediately, no fade (settled turns).
+        animation={animate ? 'blurIn' : null}
+        animationDuration="0.6s"
+        animationTimingFunction="ease-out"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        customComponents={components as any}
+      />
     </div>
   );
 }
