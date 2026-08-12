@@ -109,10 +109,14 @@ export function useVoiceCapture() {
       )();
       audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
+      // Boost quiet/distant speech before the level meter. ~3x; tune if it clips.
+      const gain = audioCtx.createGain();
+      gain.gain.value = 3;
+      source.connect(gain);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
       analyser.smoothingTimeConstant = 0.6;
-      source.connect(analyser);
+      gain.connect(analyser);
       const buf = new Uint8Array(analyser.fftSize);
       let smoothed = 0;
       const tick = () => {

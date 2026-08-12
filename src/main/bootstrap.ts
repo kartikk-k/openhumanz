@@ -173,9 +173,6 @@ function bridgeEventsToRenderer(): void {
     send(IPC_PUSH.chatUpdated, payload),
   );
   appEvents.on('chat:stream', (payload) => send(IPC_PUSH.chatStream, payload));
-  appEvents.on('voice:transcript', (payload) =>
-    send(IPC_PUSH.voiceTranscript, payload),
-  );
 }
 
 export async function bootstrap(): Promise<AppServices> {

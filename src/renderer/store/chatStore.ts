@@ -46,7 +46,7 @@ interface ChatSlice {
   refreshSessions: () => Promise<void>;
   /** Re-read the current (or given) session's transcript. */
   loadTranscript: (sessionId?: string | null) => Promise<void>;
-  send: (prompt: string) => Promise<void>;
+  send: (prompt: string, surface?: 'home' | 'chat') => Promise<void>;
   newChat: () => Promise<void>;
   selectSession: (sessionId: string) => Promise<void>;
   /** Apply a `push:chat-updated` payload. */
@@ -123,14 +123,14 @@ export const useChatStore = create<ChatSlice>((set, get) => ({
     }
   },
 
-  send: async (prompt) => {
+  send: async (prompt, surface = 'chat') => {
     const text = prompt.trim();
     if (!text) return;
     // Optimistic: show the user's message, open a fresh live turn, and lock the
     // composer immediately, so the UI never waits on the transcript file.
     set({ busy: true, pendingUserMessage: text, liveTurn: emptyLiveTurn() });
     try {
-      const ack = await call(IPC.chat.send, { prompt: text });
+      const ack = await call(IPC.chat.send, { prompt: text, surface });
       set({ currentSessionId: ack.sessionId });
     } catch (cause) {
       set({

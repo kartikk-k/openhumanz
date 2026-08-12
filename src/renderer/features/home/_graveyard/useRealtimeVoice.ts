@@ -136,6 +136,11 @@ export function useRealtimeVoice(onTranscript: (text: string) => void) {
       )();
       audioCtxRef.current = audioCtx;
       const source = audioCtx.createMediaStreamSource(stream);
+      // Boost quiet/distant speech before analysis + streaming to OpenAI.
+      // ~3x; tune if it clips.
+      const gain = audioCtx.createGain();
+      gain.gain.value = 3;
+      source.connect(gain);
 
       // ScriptProcessor captures raw PCM frames we can encode + stream.
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
@@ -155,7 +160,7 @@ export function useRealtimeVoice(onTranscript: (text: string) => void) {
         const audioBase64 = encodePcm16(input, audioCtx.sampleRate);
         void call(IPC.voice.realtimeAppend, { audioBase64 }).catch(() => {});
       };
-      source.connect(processor);
+      gain.connect(processor);
       // ScriptProcessor needs a sink to run in some browsers; a muted gain works.
       const sink = audioCtx.createGain();
       sink.gain.value = 0;

@@ -23,6 +23,8 @@ interface RawEngineEvent {
   toolCallId?: string;
   name?: string;
   input?: unknown;
+  /** Claude Code calls tool arguments `arguments` in engine events. */
+  arguments?: unknown;
   ok?: boolean;
   error?: string;
   result?: string;
@@ -74,7 +76,10 @@ export function normalizeStreamEvent(raw: unknown): ChatStreamEvent | null {
         kind: 'tool-call',
         id: e.toolCallId ?? '',
         name: e.name ?? 'tool',
-        input: e.input,
+        // Engine events use `arguments`; keep accepting `input` for adapters
+        // that already use the renderer-facing name. The activity chip needs
+        // these values to describe generic router tools (e.g. Slack reads).
+        input: e.input ?? e.arguments,
         subagent,
       };
 

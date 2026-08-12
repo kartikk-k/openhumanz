@@ -40,6 +40,8 @@ export interface ChatTurnRequest {
   maxTurns?: number;
   maxCostUsd?: number;
   signal?: AbortSignal;
+  /** Which UI initiated this turn — 'home' layers the tag protocol on top. */
+  surface?: 'home' | 'chat';
 }
 
 export interface ChatTurnResult {
@@ -164,6 +166,67 @@ const CHAT_SYSTEM_PROMPT =
   'mcp__assistant__memory_list,mcp__assistant__memory_forget,' +
   'mcp__assistant__memory_update") and use them.';
 
+/**
+ * The home-surface output protocol.
+ *
+ * The home screen is a minimal, voice-first assistant — NOT a terminal. The
+ * user only wants to see: what got done, what (if anything) is about to be sent,
+ * and whether their input/permission is needed. All the intermediate reasoning,
+ * tool-slug hunting and retries are noise there.
+ *
+ * So on the home surface the model speaks in a tiny tag language. ONLY text
+ * inside these tags is shown to the user; everything else you write is silently
+ * discarded from the home UI (it still exists in the raw transcript). This lets
+ * the home experience stay minimal while the full work runs underneath.
+ *
+ * Tags are namespaced `[openhumanz-...]` so they never collide with HTML,
+ * markdown, code, or message content the user might be sending.
+ */
+const HOME_TAG_PROTOCOL =
+  '# OUTPUT PROTOCOL (home surface)\n' +
+  'You are the assistant behind a minimal, voice-first home screen — not a ' +
+  'terminal. The user only cares that their task gets done, whether something ' +
+  'is about to be sent, and whether you need their input or permission. They do ' +
+  'NOT want to see tool names, slug-hunting, retries, or step-by-step narration.\n\n' +
+  'CRITICAL: On this surface, ONLY text you wrap in the tags below is shown to ' +
+  'the user. Everything you write OUTSIDE these tags is hidden from the home UI. ' +
+  'So do all your thinking, searching, tool calls and retries freely as usual — ' +
+  'just do NOT wrap that narration in tags. Wrap ONLY the final, minimal, ' +
+  'human-facing result.\n\n' +
+  'Tags (namespaced so they never collide with HTML/markdown/code/message text):\n' +
+  '\n' +
+  '1. Final answer — the one short, plain-language result of the turn:\n' +
+  '   [openhumanz-say]Sent it to #general.[/openhumanz-say]\n' +
+  '   Keep it to a sentence or two. No markdown, no lists, no tool talk. This is ' +
+  'usually the LAST thing you emit, once the work is done.\n' +
+  '\n' +
+  '2. A question back — when you genuinely need the user to decide before you ' +
+  'can proceed:\n' +
+  '   [openhumanz-ask]Which channel — #general or #design?[/openhumanz-ask]\n' +
+  '\n' +
+  '3. Cards — for structured results, emit a self-closing card tag with ' +
+  'double-quoted attributes INSTEAD of describing it in prose. Escape any inner ' +
+  'double quotes as \\". Available cards:\n' +
+  '   • Draft/confirm something before sending (use this WHENEVER you are about ' +
+  'to send a message, email, or take a visible action the user should see ' +
+  'first):\n' +
+  '     [openhumanz-card/confirm action="Post to #general" detail="Hey everyone! 👋 How was your weekend?" target="#general"/]\n' +
+  '   • Weather:\n' +
+  '     [openhumanz-card/weather location="San Francisco" temp="64" unit="F" condition="Clear" high="68" low="55"/]\n' +
+  '   • A week / agenda of events (items is a JSON array, quotes escaped):\n' +
+  '     [openhumanz-card/calendar-week items="[{\\"day\\":\\"Mon\\",\\"time\\":\\"9:30 AM\\",\\"title\\":\\"Standup\\"}]"/]\n' +
+  '\n' +
+  'RULES:\n' +
+  '- Emit at most ONE [openhumanz-say] or [openhumanz-ask] per turn (the final ' +
+  'result). Cards may accompany it.\n' +
+  '- NEVER put your reasoning, tool-call narration ("Let me find the tool…"), or ' +
+  'progress updates inside a tag. That text should be untagged (and thus hidden).\n' +
+  '- If a task simply completed, a short [openhumanz-say] confirming it is enough.\n' +
+  '- Do not explain the protocol or mention tags to the user. Just use them.\n' +
+  '- If you are about to send a message/email or perform a visible external ' +
+  'action, prefer a [openhumanz-card/confirm] so the user sees exactly what will ' +
+  'go out.';
+
 export interface ChatSessionRunner {
   /** Run one turn, streaming engine events to `onEvent`. Resolves at the end. */
   runTurn(
@@ -222,7 +285,10 @@ export function createChatSessionRunner(
         // Block the CLI's ephemeral cron tools so scheduling goes through the
         // app's persistent scheduler, and tell the model why.
         disallowedTools: DISALLOWED_CLI_TOOLS,
-        appendSystemPrompt: CHAT_SYSTEM_PROMPT,
+        appendSystemPrompt:
+          request.surface === 'home'
+            ? `${CHAT_SYSTEM_PROMPT}\n\n${HOME_TAG_PROTOCOL}`
+            : CHAT_SYSTEM_PROMPT,
         model: request.model,
         // Token-level streaming: the UI renders deltas as they arrive instead
         // of waiting for the whole message (or the transcript file flush).

@@ -56,6 +56,7 @@ export interface ChatSessionRunner {
       maxTurns?: number;
       maxCostUsd?: number;
       signal?: AbortSignal;
+      surface?: 'home' | 'chat';
     },
     onEvent?: (event: unknown) => void,
   ): Promise<{ sessionId: string | undefined; ok: boolean; error?: string }>;
@@ -251,6 +252,7 @@ export function createChatModule(): ChatModule {
               cwd: cwd(),
               resumeSessionId: resumeId ?? undefined,
               freshSessionId: freshId,
+              surface: request.surface ?? 'chat',
             },
             (engineEvent) => {
               // Stream every event straight to the UI so the response renders

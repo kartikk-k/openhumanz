@@ -11,6 +11,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useChatStore } from '../../../store';
 import type { OrbState } from '../orb/GlassOrb';
+import type { ChatBlock } from '../../../../shared/claudeTranscript.fold';
 import { buildTurns, type Turn } from '../lib/turns';
 
 export interface HomeChat {
@@ -24,7 +25,12 @@ export interface HomeChat {
   /** the orb drops to the bottom only once there is content. */
   orbDropped: boolean;
   orbState: OrbState;
+  /** live streaming turn's blocks (tool calls drive the activity chip). */
+  liveBlocks: ChatBlock[];
+  liveRunning: boolean;
   submit: (text: string) => void;
+  /** pins the live thread's TOP into view (question stays put, answer streams
+   *  below); called as content grows, unless the user scrolled up. */
   recenter: () => void;
   onScroll: () => void;
   scrollRef: React.RefObject<HTMLDivElement | null>;
@@ -99,8 +105,9 @@ export function useHomeChat(
     setOrbState('idle');
   }, [storeBusy, liveTurn, listening, transcribing]);
 
-  // keep the live exchange's top pinned near the top of the viewport, unless
-  // the user scrolled up.
+  // Bring the live exchange (the newest Q+A screen) fully into view. Sections
+  // are centered full-viewport, so we scroll it to the top of the scroller.
+  // Only while the user hasn't scrolled up to read history (stickRef).
   const recenter = useCallback(() => {
     const el = scrollRef.current;
     const live = liveExchangeRef.current;
@@ -110,9 +117,27 @@ export function useHomeChat(
 
   const onScroll = useCallback(() => {
     const el = scrollRef.current;
-    if (!el) return;
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 160;
+    const live = liveExchangeRef.current;
+    if (!el || !live) return;
+    // considered "at the live screen" when its section fills the viewport.
+    stickRef.current = Math.abs(el.scrollTop - live.offsetTop) < 240;
   }, []);
+
+  // When a NEW user turn arrives (a new Q+A screen), snap to it. Resume sticking
+  // and scroll the fresh section into view so the question streams in an empty
+  // screen instead of overlapping the previous one.
+  const lastUserId = [...turns].reverse().find((t) => t.role === 'user')?.id;
+  useEffect(() => {
+    stickRef.current = true;
+    // let the new section mount, then snap to it (a couple of frames).
+    const id = window.setTimeout(() => {
+      const el = scrollRef.current;
+      const live = liveExchangeRef.current;
+      if (el && live) el.scrollTo({ top: live.offsetTop, behavior: 'smooth' });
+    }, 50);
+    return () => window.clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastUserId]);
 
   // send a real message to Claude Code via the chat store.
   const submit = useCallback(
@@ -121,7 +146,7 @@ export function useHomeChat(
       if (!trimmed || storeBusy) return;
       stickRef.current = true;
       setDraft('');
-      void sendChat(trimmed);
+      void sendChat(trimmed, 'home');
     },
     [sendChat, storeBusy],
   );
@@ -134,6 +159,8 @@ export function useHomeChat(
     inChat,
     orbDropped,
     orbState,
+    liveBlocks: liveTurn?.blocks ?? [],
+    liveRunning: !!liveTurn?.running,
     submit,
     recenter,
     onScroll,

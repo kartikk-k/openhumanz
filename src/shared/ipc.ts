@@ -150,9 +150,6 @@ export const IPC = {
   },
   voice: {
     transcribe: 'voice:transcribe',
-    realtimeStart: 'voice:realtime-start',
-    realtimeAppend: 'voice:realtime-append',
-    realtimeStop: 'voice:realtime-stop',
   },
   chat: {
     sessions: 'chat:sessions',
@@ -190,7 +187,6 @@ export const IPC_PUSH = {
   environmentChanged: 'push:environment-changed',
   chatUpdated: 'push:chat-updated',
   chatStream: 'push:chat-stream',
-  voiceTranscript: 'push:voice-transcript',
 } as const satisfies Record<string, IpcPushChannel>;
 
 /* ------------------------------------------------------------------ */
@@ -364,18 +360,6 @@ export interface IpcContract {
     request: VoiceTranscribeRequest;
     response: VoiceTranscribeResult;
   };
-  /**
-   * Real-time transcription. `start` opens a WebSocket from main to OpenAI's
-   * Realtime API; `append` streams base64 PCM16 (24kHz mono) audio chunks;
-   * `stop` closes the session. Partial + final transcripts come back on the
-   * `push:voice-transcript` channel. The key stays in main.
-   */
-  'voice:realtime-start': {
-    request: Empty;
-    response: VoiceRealtimeStartResult;
-  };
-  'voice:realtime-append': { request: VoiceRealtimeAppend; response: Ack };
-  'voice:realtime-stop': { request: Empty; response: Ack };
 
   /* chat ---------------------------------------------------------- */
   'chat:sessions': { request: Empty; response: ChatSessionList };
@@ -514,6 +498,12 @@ export interface ChatSendRequest {
   prompt: string;
   /** Omit to continue the current session; the module resolves which. */
   sessionId?: string;
+  /**
+   * Which UI sent this. 'home' layers the minimal tag-protocol system prompt on
+   * top (so the home screen renders only tagged, user-facing output); 'chat'
+   * (default) is the full chat-tab experience with no tag protocol.
+   */
+  surface?: 'home' | 'chat';
 }
 
 export interface ChatSendAck {
@@ -562,32 +552,6 @@ export interface VoiceTranscribeResult {
   text: string;
 }
 
-/** Result of opening a realtime transcription session. */
-export interface VoiceRealtimeStartResult {
-  /** True when the WebSocket to OpenAI opened and is ready for audio. */
-  ok: boolean;
-  /** The audio format main expects for `append` (renderer encodes to this). */
-  audioFormat: 'pcm16';
-  /** Sample rate main expects, in Hz. */
-  sampleRate: number;
-  /** Present when ok=false — why realtime is unavailable (no key, WS error). */
-  error?: string;
-}
-
-/** One chunk of recorded audio for the realtime session. */
-export interface VoiceRealtimeAppend {
-  /** Base64-encoded PCM16 mono audio at the session sample rate. */
-  audioBase64: string;
-}
-
-/** A live transcript update pushed while recording. */
-export interface VoiceTranscriptEvent {
-  /** Accumulated transcript text so far. */
-  text: string;
-  /** True once the segment is finalized (not a partial delta). */
-  final: boolean;
-}
-
 /** Union of every renderer -> main channel name. */
 export type IpcChannel = keyof IpcContract;
 
@@ -632,8 +596,6 @@ export interface IpcPushContract {
   };
   /** A live event from the running chat turn, for token-level streaming. */
   'push:chat-stream': { sessionId: string | null; event: ChatStreamEvent };
-  /** A live transcript update from the realtime voice session. */
-  'push:voice-transcript': VoiceTranscriptEvent;
 }
 
 export type IpcPushChannel = keyof IpcPushContract;
