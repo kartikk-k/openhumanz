@@ -1,22 +1,27 @@
 /**
  * OS notifications.
  *
- * The app has notification *settings* (enabled / on-approval / on-run-finished)
- * but until now nothing acted on them — a scheduled reminder fired into a run
- * transcript and the user never heard about it. This wires the settings to
- * Electron's `Notification` so the machine actually tells you when:
+ * Tells the user when a scheduled job (reminder) has run and produced an answer,
+ * a run they kicked off has finished, or an action is waiting on their approval.
  *
- *   - a scheduled job (a reminder) has run and produced an answer,
- *   - a run you kicked off has finished,
- *   - an action is waiting on your approval.
+ * DELIVERY: on macOS this posts via AppleScript `display notification`, which
+ * needs no per-app notification permission and is not silently dropped by the
+ * dev binary's ad-hoc signature the way Electron's `Notification` is (see
+ * `showViaAppleScript`). Electron's cross-platform `Notification` is the
+ * fallback for non-macOS and for any osascript failure.
  *
- * Electron is required lazily (like the rest of bootstrap) so the backend can
- * boot headlessly; outside Electron, or when notifications aren't supported,
- * every call is a no-op.
+ * Notifications CANNOT be turned off. The `enabled` setting is intentionally
+ * not consulted — a reminder the user never sees defeats the purpose. The
+ * remaining per-class toggles only tune noisiness, not whether it works.
  */
 import type { AppEvents, EventBus } from '../infra/events';
 import type { Logger } from '../infra/logger';
 import type { Run, RunEvent, RunEventsQuery } from '../../shared/runs';
+import { runProcess } from '../infra/spawn';
+import { appleScriptStringExpr } from '../modules/macos/escape';
+
+/** `/usr/bin/osascript` on the signed system volume — never resolved via PATH. */
+const OSASCRIPT_PATH = '/usr/bin/osascript';
 
 /** What the service needs from the settings module, narrowed to one getter. */
 export interface NotificationSettingsSource {
@@ -45,6 +50,8 @@ export interface NotificationServiceDeps {
 interface ElectronNotification {
   show(): void;
   on(event: 'click', listener: () => void): void;
+  on(event: 'show', listener: () => void): void;
+  on(event: 'failed', listener: (event: unknown, error: string) => void): void;
 }
 interface ElectronNotificationApi {
   Notification: {
@@ -78,6 +85,14 @@ function loadElectron(): ElectronNotificationApi | null {
 export interface NotificationService {
   /** Attach the bus listeners. Call once from bootstrap. */
   start(): void;
+  /**
+   * Fire a one-time priming notification so macOS surfaces its permission
+   * dialog on first launch. Until *something* calls `Notification.show()`,
+   * macOS never prompts and never registers the app under System Settings ›
+   * Notifications, so every later reminder is silently dropped. Called once
+   * from bootstrap.
+   */
+  primePermission(): void;
 }
 
 export function createNotificationService(
@@ -98,11 +113,84 @@ export function createNotificationService(
     }
   };
 
-  const showNotification = (title: string, body: string): void => {
+  /**
+   * Show a notification via AppleScript `display notification`.
+   *
+   * WHY AppleScript instead of Electron's `Notification`: on macOS the Electron
+   * path requires the app bundle to be registered *and* not suppressed by the
+   * user's Focus/Do-Not-Disturb, and in dev the ad-hoc-signed binary is easily
+   * dropped silently (delivered but `presented=0`). `display notification`, by
+   * contrast, is posted by the system's AppleScript host — it needs no
+   * per-app notification permission and reliably surfaces in dev. This is the
+   * same osascript path the reminders/notes features already use, so if the app
+   * can create a reminder it can post a notification.
+   *
+   * Only the darwin path uses AppleScript; other platforms (and any osascript
+   * failure) fall back to Electron's cross-platform `Notification`.
+   */
+  const showViaAppleScript = async (
+    title: string,
+    body: string,
+  ): Promise<boolean> => {
+    if (process.platform !== 'darwin') return false;
+    try {
+      // Build the source with the project's audited string-literal escaper so a
+      // title/body containing quotes, backslashes or emoji can never break out
+      // of the AppleScript string context.
+      const src =
+        `display notification ${appleScriptStringExpr(body)} ` +
+        `with title ${appleScriptStringExpr(title)}`;
+      const result = await runProcess(OSASCRIPT_PATH, ['-e', src], {
+        timeoutMs: 10_000,
+        label: 'osascript-notify',
+        collectStdout: true,
+        // osascript is not node; strip the Electron-node env it would inherit.
+        env: {
+          ELECTRON_RUN_AS_NODE: undefined,
+          ELECTRON_NO_ATTACH_CONSOLE: undefined,
+          NODE_OPTIONS: undefined,
+        },
+      });
+      if (result.timedOut || result.code !== 0) {
+        logger.warn('applescript notification failed', {
+          title,
+          code: result.code,
+          timedOut: result.timedOut,
+          stderr: result.stderrTail,
+        });
+        return false;
+      }
+      logger.info('notification shown via applescript', { title });
+      return true;
+    } catch (error) {
+      logger.warn('applescript notification errored', {
+        title,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return false;
+    }
+  };
+
+  /** Fallback path: Electron's cross-platform Notification (non-macOS, or if
+   *  the AppleScript path is unavailable/failed). */
+  const showViaElectron = (title: string, body: string): void => {
     const electron = loadElectron();
-    if (!electron || !electron.Notification.isSupported()) return;
+    if (!electron || !electron.Notification.isSupported()) {
+      logger.warn(
+        'notification not shown: unsupported or electron unavailable',
+        {
+          electron: Boolean(electron),
+          supported: electron ? electron.Notification.isSupported() : false,
+          title,
+        },
+      );
+      return;
+    }
     try {
       const notification = new electron.Notification({ title, body });
+      notification.on('failed', (_event, error) => {
+        logger.warn('electron notification delivery failed', { error, title });
+      });
       notification.on('click', () => {
         // Bring the app forward when the user clicks the notification.
         for (const win of electron.BrowserWindow.getAllWindows()) {
@@ -113,11 +201,20 @@ export function createNotificationService(
         }
       });
       notification.show();
+      logger.info('notification shown via electron', { title });
     } catch (error) {
       logger.warn('failed to show notification', {
         error: error instanceof Error ? error.message : String(error),
       });
     }
+  };
+
+  /** Show a notification, preferring the reliable AppleScript path on macOS. */
+  const showNotification = (title: string, body: string): void => {
+    void showViaAppleScript(title, body).then((ok) => {
+      if (!ok) showViaElectron(title, body);
+      return ok;
+    });
   };
 
   /** The last assistant message in a run, for the notification body. */
@@ -156,9 +253,11 @@ export function createNotificationService(
 
     const scheduled = run.trigger === 'schedule' || Boolean(run.scheduledJobId);
     const config = await readSettings();
-    if (!config.enabled) return;
-    // Scheduled reminders always notify (that is the whole point of a
-    // reminder); other runs only when the user opted in.
+    // Notifications are always on and cannot be disabled (product decision):
+    // a reminder the user never sees is worse than useless. The `enabled`
+    // setting is intentionally NOT consulted here. Scheduled reminders always
+    // notify; ad-hoc runs still respect the per-run `onRunFinished` preference
+    // (that toggle governs noisiness, not whether notifications work at all).
     if (!scheduled && !config.onRunFinished) return;
 
     const body =
@@ -174,7 +273,9 @@ export function createNotificationService(
     approval,
   }: AppEvents['approval:requested']): Promise<void> => {
     const config = await readSettings();
-    if (!config.enabled || !config.onApprovalRequired) return;
+    // `enabled` is intentionally not consulted — notifications can't be turned
+    // off. The `onApprovalRequired` toggle only controls this specific class.
+    if (!config.onApprovalRequired) return;
     const toolName =
       (approval as { toolName?: string }).toolName ?? 'An action';
     showNotification(
@@ -191,6 +292,13 @@ export function createNotificationService(
       events.on('approval:requested', (payload) => {
         void onApproval(payload);
       });
+    },
+    primePermission() {
+      // A quiet, self-dismissing hello. Its only job is to be the first
+      // Notification.show() of the process so macOS pops the authorization
+      // prompt (and lists the app under System Settings › Notifications). We
+      // keep it silent so it isn't obnoxious on every launch.
+      showNotification('Assistant is ready', 'Notifications are enabled.');
     },
   };
 }

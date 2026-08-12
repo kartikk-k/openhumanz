@@ -16,6 +16,7 @@ import { ApprovalsScreen } from './features/approvals/ApprovalsScreen';
 import { SettingsScreen } from './features/settings/SettingsScreen';
 import { OnboardingScreen } from './features/onboarding/OnboardingScreen';
 import { HomeScreen } from './features/home/HomeScreen';
+import { DashboardScreen } from './features/dashboard/DashboardScreen';
 import './App.css';
 
 /**
@@ -40,6 +41,8 @@ export default function App() {
           <Route path={ROUTES.onboarding} element={<OnboardingScreen />} />
           {/* Home is a blank scratch page — full window, no shell. */}
           <Route path={`${ROUTES.home}/*`} element={<HomeScreen />} />
+          {/* Dashboard prototype — full window overview, no shell. */}
+          <Route path={`${ROUTES.dashboard}/*`} element={<DashboardScreen />} />
 
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to={ROUTES.chat} replace />} />

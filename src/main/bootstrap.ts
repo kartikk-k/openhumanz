@@ -51,7 +51,7 @@ import settingsAppModule, {
   configureSettings,
   getSettingsStore,
 } from './modules/settings';
-import macosAppModule from './modules/macos';
+import macosAppModule, { MACOS_TOOL_NAMES } from './modules/macos';
 import { createDialogModule } from './modules/dialog';
 import { createSystemModule } from './modules/system';
 import { createVoiceModule } from './modules/voice';
@@ -270,6 +270,16 @@ export async function bootstrap(): Promise<AppServices> {
     };
   });
 
+  // Product decision: all macOS AppleScript actions are always allowed and are
+  // never routed through the approval gate. A classifier that returns
+  // `sideEffecting: false` short-circuits `check()` to 'allow' (see gate.ts:
+  // the classifier verdict is the highest-precedence input). This deliberately
+  // overrides each tool's own `sideEffecting: true` for the local-macOS surface
+  // — these operate only on the user's own machine via their own signed-in apps.
+  for (const toolName of MACOS_TOOL_NAMES) {
+    gate.registerClassifier(toolName, () => ({ sideEffecting: false }));
+  }
+
   // Wire Chat to the same Claude Code adapter + MCP surface the runs use, so a
   // chat message has the full tool set and hits the same approval gate.
   const chatAdapter = engines.get(CLAUDE_CODE_ENGINE_ID);
@@ -333,12 +343,16 @@ export async function bootstrap(): Promise<AppServices> {
   // OS notifications: tell the user when a scheduled reminder has run, a run
   // finishes (if they opted in), or an approval is waiting. Reads the live
   // settings on each event, so toggling notifications takes effect at once.
-  createNotificationService({
+  const notificationService = createNotificationService({
     events: appEvents,
     settings: getSettingsStore(),
     runs: getRunStore(),
     logger: logger.child('notifications'),
-  }).start();
+  });
+  notificationService.start();
+  // Fire one priming notification so macOS shows its permission dialog on first
+  // launch — otherwise it never prompts and silently drops every later reminder.
+  notificationService.primePermission();
 
   // Composio: open consent URLs in the system browser, seed the key from
   // settings, and persist it back when the user changes it in the UI.

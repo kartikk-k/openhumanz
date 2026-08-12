@@ -15,13 +15,21 @@ set -euo pipefail
 APP="node_modules/electron/dist/Electron.app"
 PLIST="$APP/Contents/Info.plist"
 BUNDLE_ID="com.openhumanz.dev"
+# Display name macOS shows for this app in System Settings › Notifications and
+# in the Focus allow-list. Without this the dev binary shows as the generic
+# "Electron", which is impossible to find and shares state with every other
+# unsigned Electron app.
+APP_NAME="Assistant"
 
 [ -d "$APP" ] || { echo "[dev-mic] $APP not found, skipping"; exit 0; }
 command -v codesign >/dev/null 2>&1 || { echo "[dev-mic] codesign missing, skipping"; exit 0; }
 
-# If already set up (right bundle id AND audio entitlement present), do nothing.
+# If already set up (right bundle id, audio entitlement, AND display name), do
+# nothing. The display name check is what forces a one-time re-run on machines
+# that were set up before the "Assistant" naming was added.
 CURRENT_ID="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$PLIST" 2>/dev/null || echo '')"
-if [ "$CURRENT_ID" = "$BUNDLE_ID" ] && \
+CURRENT_NAME="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleName' "$PLIST" 2>/dev/null || echo '')"
+if [ "$CURRENT_ID" = "$BUNDLE_ID" ] && [ "$CURRENT_NAME" = "$APP_NAME" ] && \
    codesign -d --entitlements - "$APP" 2>/dev/null | grep -q "com.apple.security.device.audio-input"; then
   exit 0
 fi
@@ -35,6 +43,13 @@ echo "[dev-mic] configuring Electron dev binary for microphone access…"
 # 2) mic usage string (required or the request fails silently)
 /usr/libexec/PlistBuddy -c "Set :NSMicrophoneUsageDescription This app uses your microphone while you hold Space to talk." "$PLIST" 2>/dev/null || \
   /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string This app uses your microphone while you hold Space to talk." "$PLIST"
+
+# 2b) display name so macOS Notifications / Focus show "Assistant" rather than
+# the generic "Electron" — required to find & allow the app in Focus settings.
+/usr/libexec/PlistBuddy -c "Set :CFBundleName $APP_NAME" "$PLIST" 2>/dev/null || \
+  /usr/libexec/PlistBuddy -c "Add :CFBundleName string $APP_NAME" "$PLIST"
+/usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName $APP_NAME" "$PLIST" 2>/dev/null || \
+  /usr/libexec/PlistBuddy -c "Add :CFBundleDisplayName string $APP_NAME" "$PLIST"
 
 # 3) ad-hoc re-sign with the audio-input entitlement (+ JIT so Electron runs)
 ENT="$(mktemp -t electron-dev-entitlements).plist"

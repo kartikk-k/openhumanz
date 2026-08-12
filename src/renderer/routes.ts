@@ -13,6 +13,7 @@ import {
   Activity,
   CalendarClock,
   LayoutDashboard,
+  LayoutGrid,
   Library,
   ListTodo,
   MessageSquare,
@@ -31,6 +32,8 @@ export const ROUTES = {
   settings: '/settings',
   /** A blank full-window scratch page, rendered outside the app shell. */
   home: '/home',
+  /** Full-window overview canvas — a prototype, rendered outside the shell. */
+  dashboard: '/dashboard',
   onboarding: '/onboarding',
 } as const;
 
@@ -54,6 +57,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     label: 'Home',
     icon: LayoutDashboard,
     description: 'A blank canvas to experiment on.',
+  },
+  {
+    key: 'dashboard',
+    path: ROUTES.dashboard,
+    label: 'Dashboard',
+    icon: LayoutGrid,
+    description:
+      'An overview of reminders, messages, events, tasks and workflows.',
   },
   {
     key: 'chat',

@@ -90,10 +90,14 @@ on jsonBool(b)
 	return "false"
 end jsonBool
 
-on joinText(items, sep)
+-- NOTE: the parameter must NOT be named `items` — that is a reserved AppleScript
+-- term (a built-in list/text property), and using it as a formal parameter fails
+-- to compile with "items is illegal as a formal parameter", which broke every
+-- script that includes this prelude (e.g. reminders-create).
+on joinText(itemList, sep)
 	set savedTid to AppleScript's text item delimiters
 	set AppleScript's text item delimiters to sep
-	set res to (items as text)
+	set res to (itemList as text)
 	set AppleScript's text item delimiters to savedTid
 	return res
 end joinText

@@ -277,6 +277,17 @@ if (!gotTheLock) {
   app
     .whenReady()
     .then(async () => {
+      // App display name (dock / menu bar).
+      app.setName('Assistant');
+      // NOTE: macOS notification *attribution* is NOT controlled from JS. It
+      // comes from the signed app bundle's CFBundleIdentifier — set for the dev
+      // Electron binary by scripts/dev-mic-entitlement.sh (com.openhumanz.dev,
+      // ad-hoc signed). `app.setAppUserModelId()` is a WINDOWS-only mechanism
+      // and a no-op on macOS, so it is only set on win32 (relevant if we ever
+      // ship a Windows build).
+      if (process.platform === 'win32') {
+        app.setAppUserModelId('com.openhumanz.dev');
+      }
       // Before the first window: the renderer must never race against
       // unregistered IPC handlers.
       try {

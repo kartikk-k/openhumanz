@@ -16,10 +16,13 @@
  *    code execution with a friendly schema. See `shell-guard.ts`.
  *  - **No delete, no trash, no empty trash, no mark-complete.** Nothing here is
  *    irreversible from the user's own UI.
- *  - **No notification tool.** An agent-callable notification is a second,
- *    unaudited channel for prompting the user, and it routes around the approval
- *    gate by asking them directly. Notifications stay internal, as the rendering
- *    mechanism for approvals.
+ *
+ * `send_notification` is the one deliberate exception to the "no agent-callable
+ * side channel" instinct: by product decision the agent must be able to alert
+ * the user directly (a reminder firing, a task finishing) without routing
+ * through a shell/osascript Bash call that hits the approval gate. It posts a
+ * `display notification` banner — a message to the user, not a consequential
+ * outside-world action — so it is marked non-side-effecting and always allowed.
  *
  * Every result is compact: lists are capped, bodies are truncated with an
  * explicit flag, and detail is fetched by id. Failures are values — a structured
@@ -28,6 +31,9 @@
  */
 import { z } from 'zod';
 import { defineTool, type AnyToolDefinition } from '../types';
+import { runProcess } from '../../infra/spawn';
+import { appleScriptStringExpr } from './escape';
+import { OSASCRIPT_PATH } from './osascript';
 import { asMacosError, type RemediationCard } from './errors';
 import {
   unavailableResult,
@@ -264,6 +270,16 @@ const CapabilitiesInput = z.object({
     .default(false)
     .describe('Re-check availability rather than using the cached answer.'),
 });
+
+const SendNotificationInput = z.object({
+  title: z.string().min(1).max(256).describe('The notification title.'),
+  body: z
+    .string()
+    .max(2000)
+    .default('')
+    .describe('The notification body text.'),
+});
+type SendNotificationInputType = z.infer<typeof SendNotificationInput>;
 
 /* ------------------------------------------------------------------ */
 /* Tools                                                               */
@@ -844,6 +860,71 @@ export function createMacosTools(deps: ToolDeps): AnyToolDefinition[] {
       ),
   });
 
+  /* ---------------- notifications ---------------- */
+
+  const sendNotification = defineTool<SendNotificationInputType>({
+    name: 'send_notification',
+    description:
+      'Post a macOS notification banner with a title and body. Use this to ' +
+      'alert the user directly (e.g. when a reminder fires or a task finishes). ' +
+      'Delivered via the system, so it needs no separate notification permission.',
+    inputSchema: SendNotificationInput,
+    // Not routed through the approval gate: posting a banner is not a
+    // consequential, outside-world action — it just shows the user a message.
+    // Per product decision, AppleScript notifications are always allowed.
+    sideEffecting: false,
+    annotations: { title: 'Send a notification' },
+    summarize: (input) => `Notify: "${input.title}".`,
+    handler: async (input) => {
+      if (process.platform !== 'darwin') {
+        return {
+          ok: false as const,
+          error: {
+            kind: 'unavailable',
+            message: `Notifications are only available on macOS; this is ${process.platform}.`,
+          },
+        };
+      }
+      try {
+        // The audited escaper guarantees title/body can't break out of the
+        // AppleScript string context, whatever characters they contain.
+        const src =
+          `display notification ${appleScriptStringExpr(input.body)} ` +
+          `with title ${appleScriptStringExpr(input.title)}`;
+        const result = await runProcess(OSASCRIPT_PATH, ['-e', src], {
+          timeoutMs: 10_000,
+          label: 'osascript-notify',
+          collectStdout: true,
+          env: {
+            ELECTRON_RUN_AS_NODE: undefined,
+            ELECTRON_NO_ATTACH_CONSOLE: undefined,
+            NODE_OPTIONS: undefined,
+          },
+        });
+        if (result.timedOut || result.code !== 0) {
+          return {
+            ok: false as const,
+            error: {
+              kind: 'script-failed',
+              message:
+                result.stderrTail?.trim() ||
+                'The notification could not be shown.',
+            },
+          };
+        }
+        return { ok: true as const };
+      } catch (cause) {
+        return {
+          ok: false as const,
+          error: {
+            kind: 'unknown',
+            message: cause instanceof Error ? cause.message : String(cause),
+          },
+        };
+      }
+    },
+  });
+
   /* ---------------- files ---------------- */
 
   const filesSelection = defineTool<z.infer<typeof FilesSelectionInput>>({
@@ -890,6 +971,7 @@ export function createMacosTools(deps: ToolDeps): AnyToolDefinition[] {
     remindersList,
     remindersGet,
     remindersCreate,
+    sendNotification,
     filesSelection,
   ];
 }
@@ -914,6 +996,7 @@ export const MACOS_TOOL_NAMES = [
   'reminders_list',
   'reminders_get',
   'reminders_create',
+  'send_notification',
   'files_finder_selection',
 ] as const;
 
