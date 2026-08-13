@@ -194,6 +194,37 @@ function applyUsage(current: Usage, incoming: Usage): Usage {
 
 const MAX_SUMMARY_LENGTH = 400;
 
+/**
+ * CLI-native tools that must never be handed to an app run.
+ *
+ * `SendMessage`/`Agent`/`ScheduleWakeup` are Claude Code's own multi-agent
+ * orchestration tools — they reach CLI "teammate" agents and background
+ * sub-agents, which have nothing to do with this app's runs. A bot run that
+ * wants to talk to another bot must use the app's `message_bot` MCP tool, not
+ * `SendMessage` (which fails with "no agent named …"). Cron tools are blocked
+ * for the same reason chat blocks them: scheduling goes through the app's
+ * persistent scheduler, not the CLI's session-only cron.
+ */
+const DISALLOWED_RUN_TOOLS = [
+  'SendMessage',
+  'Agent',
+  'ScheduleWakeup',
+  'CronCreate',
+  'CronList',
+  'CronDelete',
+];
+
+/**
+ * Built-in CLI tools that are ALWAYS available to a run and never gated.
+ *
+ * Web access is a baseline capability — a bot that fetches Hacker News or
+ * searches the web should just work, with no per-call approval and no setting
+ * to disable it. These are read-only fetches, so there is nothing to gate. They
+ * are added to the CLI's `--allowed-tools` so a non-interactive background run
+ * (which cannot answer an approval prompt) doesn't dead-end on a WebFetch.
+ */
+const ALWAYS_ALLOWED_RUN_TOOLS = ['WebFetch', 'WebSearch'];
+
 function compact(
   value: string | undefined,
   max = MAX_SUMMARY_LENGTH,
@@ -260,9 +291,14 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
     const cwd = plannedStep.cwd ?? run.cwd ?? defaults.cwd;
 
     let usage: Usage = {};
-    let sessionId = plannedStep.continueSession
-      ? inheritedSessionId
-      : undefined;
+    // Resume the inherited session when the step opts into continuation OR when
+    // one was explicitly handed in (a cross-run resume, e.g. a bot thread). The
+    // step index guards multi-step semantics: only step 0 can inherit a session
+    // from *outside* the run; later steps inherit only via continueSession.
+    let sessionId =
+      plannedStep.continueSession || step.index === 0
+        ? inheritedSessionId
+        : undefined;
     let summary: string | undefined;
     let failure: { kind: EngineFailureKind; message: string } | undefined;
     let sawResult = false;
@@ -453,11 +489,19 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
 
     try {
       /* 1. gate one — what this step may reach through our own server */
+      // A bot run is an interactive background chat: a human is watching its
+      // thread and can answer an approval inline (the card waits in the thread
+      // and the call continues once they decide), so it registers interactive
+      // like chat does — not fire-and-forget. Other runs stay non-interactive.
+      const interactive = Boolean(
+        (run.metadata as { botId?: unknown } | undefined)?.botId,
+      );
       scope = await mcp.register({
         runId: run.id,
         stepId: step.id,
         allowedTools: plannedStep.allowedTools,
         cwd,
+        interactive,
         signal: controller.signal,
         onToolCall: (call) => {
           // The same physical call reaches us twice: the CLI announces
@@ -538,8 +582,15 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
         maxTurns,
         maxCostUsd,
         allowedTools: [
-          ...new Set([...plannedStep.allowedTools, ...scope.exposedToolNames]),
+          ...new Set([
+            ...plannedStep.allowedTools,
+            ...scope.exposedToolNames,
+            ...ALWAYS_ALLOWED_RUN_TOOLS,
+          ]),
         ],
+        // Never expose the CLI's own teammate/cron orchestration tools to an app
+        // run — a bot reaches another bot via message_bot, not SendMessage.
+        disallowedTools: DISALLOWED_RUN_TOOLS,
         mcpConfigPath: config.path,
         model: plannedStep.model ?? defaults.model,
         stderrLogPath: paths.runStderrFile(run.id),
@@ -707,7 +758,10 @@ export function createOrchestrator(options: OrchestratorOptions): Orchestrator {
     let failureKind: FailureKind | undefined;
     let error: string | undefined;
     let usage: Usage = {};
-    let sessionId: string | undefined;
+    // Resume a prior session when the caller asked for it (bots, for thread
+    // continuity). The first step then continues that conversation instead of
+    // starting a memoryless one.
+    let sessionId: string | undefined = request.resumeSessionId;
 
     const started = store.updateRun(created.id, {
       status: 'running',

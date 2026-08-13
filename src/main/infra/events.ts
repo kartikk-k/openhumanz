@@ -60,6 +60,18 @@ export interface AppEvents {
   /** A live event from a running chat turn, forwarded to the UI for streaming. */
   'chat:stream': { sessionId: string | null; event: ChatStreamEvent };
 
+  /* bots */
+  /**
+   * A bot's thread changed — a message was appended, or a streaming bot message
+   * grew new blocks, or its unread count moved. The renderer re-reads the
+   * thread (and roster) for the affected bot.
+   */
+  'bots:thread': {
+    botId: string;
+    /** True when the roster (names, unread, archived) may have changed too. */
+    rosterChanged?: boolean;
+  };
+
   /* composio */
   /** The user set a new Composio API key in the UI; persist it to settings. */
   'composio:save-key': { apiKey: string };

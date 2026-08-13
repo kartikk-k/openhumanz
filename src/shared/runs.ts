@@ -328,6 +328,13 @@ export const RunStartRequestSchema = z.object({
   goalId: IdSchema.optional(),
   taskId: IdSchema.optional(),
   scheduledJobId: IdSchema.optional(),
+  /**
+   * Resume a prior engine session instead of starting fresh, so the run
+   * inherits that session's conversation history. Bots use this to give a bot
+   * thread continuity across turns (each turn is a separate run, but they share
+   * one engine session). Omit for a fresh, memoryless run.
+   */
+  resumeSessionId: z.string().optional(),
   allowedTools: z.array(z.string()).optional(),
   maxTurns: z.number().int().positive().optional(),
   maxCostUsd: z.number().positive().optional(),

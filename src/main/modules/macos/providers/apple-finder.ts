@@ -1,15 +1,17 @@
 /**
- * Finder as a `files` provider, offering exactly one thing: what the user has
- * selected.
+ * Finder as a `files` provider: the current selection, and moving a path to
+ * Trash.
  *
- * That is the piece Claude Code's native filesystem tools genuinely cannot
- * supply — "the files I am looking at right now" is UI state, not a path. Every
- * other Finder verb is either something the native tools already do better under
- * their own gate (read, search, move) or irreversible (trash, empty trash), and
- * neither belongs on a second, parallel filesystem surface.
+ * Selection is UI state Node cannot see. Trash is a Finder verb — the same
+ * `delete` that puts an item in the Trash so the user can restore it. There is
+ * no empty-trash operation and no hard delete. Text I/O (create, read, move,
+ * list, mkdir) lives on the local-filesystem provider and uses Node `fs`, not
+ * AppleScript. There is no generic shell.
  */
+import fsp from 'node:fs/promises';
 import { buildArgv } from '../escape';
-import { FinderSelectionSchema } from '../schema';
+import { mapFsError, resolveUserPath, unsupportedFileOp } from '../files-io';
+import { FinderSelectionSchema, FinderTrashSchema } from '../schema';
 import type { CapabilityOp } from '../version';
 import {
   checkAppleApp,
@@ -18,7 +20,7 @@ import {
 } from './apple-base';
 import type { CapabilityProvider, FilesOps } from './types';
 
-const OPS: readonly CapabilityOp[] = ['files.finder-selection'];
+const OPS: readonly CapabilityOp[] = ['files.finder-selection', 'files.trash'];
 
 export function createAppleFinderProvider(
   deps: AppleProviderDeps,
@@ -40,6 +42,29 @@ export function createAppleFinderProvider(
         frontWindowPath: result.frontWindowPath,
       };
     },
+
+    async trash(input, ctx) {
+      const resolved = resolveUserPath(input.path);
+      try {
+        await fsp.access(resolved);
+      } catch (cause) {
+        throw mapFsError(cause, resolved);
+      }
+      const result = await deps.runner.runScript({
+        script: 'finder-trash',
+        appId: 'finder',
+        args: buildArgv([resolved]),
+        schema: FinderTrashSchema,
+        signal: ctx.signal,
+      });
+      return { path: result.path || resolved };
+    },
+
+    create: async () => unsupportedFileOp('files.create'),
+    read: async () => unsupportedFileOp('files.read'),
+    move: async () => unsupportedFileOp('files.move'),
+    list: async () => unsupportedFileOp('files.list'),
+    makeFolder: async () => unsupportedFileOp('files.make-folder'),
   };
 
   return {

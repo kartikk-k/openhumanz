@@ -25,6 +25,13 @@ export {
   usePreferredEngine,
 } from './environmentStore';
 export { useOnboardingStore, useShouldOnboard } from './onboardingStore';
+export {
+  useBotList,
+  useBotsStore,
+  useSelectedBot,
+  useSelectedMessages,
+  type RosterBot,
+} from './botsStore';
 export { useChatStore } from './chatStore';
 export {
   findSeqGaps,

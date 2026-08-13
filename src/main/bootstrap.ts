@@ -58,6 +58,7 @@ import { createVoiceModule } from './modules/voice';
 import { createComposioModule } from './modules/composio';
 import { createSupermemoryModule } from './modules/supermemory';
 import { createChatModule } from './modules/chat';
+import { createBotsModule } from './modules/bots';
 import { createChatSessionRunner } from './services/chat-session-runner';
 import { CLAUDE_CODE_ENGINE_ID } from './services/engines/claude-code';
 import { createNotificationService } from './services/notifications';
@@ -118,15 +119,27 @@ function mcpScopeRegistrar(
 ): McpScopeRegistrar {
   return {
     async register(request: McpStepScopeRequest): Promise<McpStepScope> {
+      // The inter-bot tools are exposed to EVERY run, regardless of the run's
+      // own allow-list. This is what lets a scheduled job (or any run) reach a
+      // bot via message_bot — otherwise a job whose prompt says "message the
+      // Hacker News bot" fails with "no message_bot tool available". They are
+      // internal, non-consequential (hand a prompt to a local bot), and are
+      // force-allowed by the approval gate too, so always exposing them is safe.
+      const BOT_TOOLS = ['list_bots', 'message_bot'];
+      const allowedTools = [
+        ...new Set([...request.allowedTools, ...BOT_TOOLS]),
+      ];
+
       const step = mcp.registerStep({
         stepId: request.stepId,
         runId: request.runId,
-        allowedTools: request.allowedTools,
+        allowedTools,
+        interactive: request.interactive,
       });
 
       // Only the names this server actually owns become `mcp__…` ids; native
       // CLI tools in the allowlist are not its business.
-      const owned = request.allowedTools.filter(
+      const owned = allowedTools.filter(
         (name) => registryRef.tool(name) !== undefined,
       );
 
@@ -173,6 +186,7 @@ function bridgeEventsToRenderer(): void {
     send(IPC_PUSH.chatUpdated, payload),
   );
   appEvents.on('chat:stream', (payload) => send(IPC_PUSH.chatStream, payload));
+  appEvents.on('bots:thread', (payload) => send(IPC_PUSH.botThread, payload));
 }
 
 export async function bootstrap(): Promise<AppServices> {
@@ -196,6 +210,10 @@ export async function bootstrap(): Promise<AppServices> {
   // Chat runs its own resumable Claude Code session; its runner is injected
   // below once the MCP server exists (it needs the tool surface + approvals).
   const chatModule = createChatModule();
+
+  // Bots: named agents with persistent threads. The orchestrator is injected
+  // below once it exists, the same way chat and runs receive their launchers.
+  const botsModule = createBotsModule();
 
   // Composio: third-party connectors. The API key comes from settings; the
   // browser open uses electron's shell.
@@ -225,6 +243,7 @@ export async function bootstrap(): Promise<AppServices> {
       voiceModule,
       supermemoryModule,
       chatModule,
+      botsModule,
     ],
     db,
     paths,
@@ -280,6 +299,15 @@ export async function bootstrap(): Promise<AppServices> {
     gate.registerClassifier(toolName, () => ({ sideEffecting: false }));
   }
 
+  // The bots tools are always allowed too. `message_bot` just hands a prompt to
+  // another local bot (which runs in the background and posts into its own
+  // thread) — there is no external, consequential side effect to gate, and a
+  // bot run is non-interactive, so a pending approval there can never be
+  // answered and would hang the call forever. list_bots is a pure read.
+  for (const toolName of ['list_bots', 'message_bot']) {
+    gate.registerClassifier(toolName, () => ({ sideEffecting: false }));
+  }
+
   // Wire Chat to the same Claude Code adapter + MCP surface the runs use, so a
   // chat message has the full tool set and hits the same approval gate.
   const chatAdapter = engines.get(CLAUDE_CODE_ENGINE_ID);
@@ -306,6 +334,28 @@ export async function bootstrap(): Promise<AppServices> {
   });
 
   configureRuns({ launcher: orchestrator, sink: { send } });
+  // The runner types `trigger` as string; the orchestrator wants the enum.
+  botsModule.configure({
+    // An unconfigured bot (empty allowedTools) gets the full registered
+    // toolset — otherwise the orchestrator scopes it to nothing and even
+    // message_bot disappears.
+    allToolNames: () => registry.tools().map((tool) => tool.name),
+    launcher: {
+      startIfCondition: ({ request, condition, reason }) => {
+        const trigger =
+          request.trigger === 'schedule' ||
+          request.trigger === 'watcher' ||
+          request.trigger === 'system'
+            ? request.trigger
+            : 'manual';
+        return orchestrator.startIfCondition({
+          request: { ...request, trigger },
+          condition,
+          reason,
+        });
+      },
+    },
+  });
 
   // OS notifications: tell the user when a scheduled reminder has run, a run
   // finishes (if they opted in), or an approval is waiting. Reads the live
@@ -320,11 +370,13 @@ export async function bootstrap(): Promise<AppServices> {
   });
   notificationService.start();
 
-  // A scheduled job came due. Two kinds, two paths:
+  // A scheduled job came due. Three kinds, three paths:
   //
   //  - `reminder` → post the notification directly and STOP. No engine spawns,
   //    so a recurring "drink water" reminder costs zero tokens. The title is
   //    the job name and the body is its (optional) pre-filled prompt.
+  //  - agent with `botId` → post into that bot's thread (and notify
+  //    "New from <bot>"). The run is the bot's, not a standalone one.
   //  - `agent`    → spawn the engine with the job's prompt, exactly as before,
   //    for work that must be *done* at run time (summaries, triage, workflows).
   //
@@ -343,6 +395,22 @@ export async function bootstrap(): Promise<AppServices> {
       const body = job.prompt.trim() || job.description.trim() || job.name;
       notificationService.notify(job.name, body);
       logger.info('reminder fired (no engine)', { jobId, name: job.name });
+      return;
+    }
+
+    const botId = job.botId;
+    if (typeof botId === 'string' && botId.length > 0) {
+      const bot = botsModule.store.getBot(botId);
+      void botsModule.runner
+        .sendToBot({
+          botId,
+          prompt: job.prompt,
+          source: 'schedule',
+          author: job.name,
+        })
+        .catch((error) => logger.error('scheduled bot dispatch failed', error));
+      const label = bot?.name ?? job.name;
+      notificationService.notify(`New from ${label}`, job.name);
       return;
     }
 

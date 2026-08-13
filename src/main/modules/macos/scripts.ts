@@ -87,6 +87,7 @@ export const SCRIPT_SPECS: readonly ScriptSpec[] = [
   { name: 'reminders-reminder', placeholders: {} },
   { name: 'reminders-create', placeholders: {} },
   { name: 'finder-selection', placeholders: {} },
+  { name: 'finder-trash', placeholders: {} },
 ];
 
 export type ScriptName = (typeof SCRIPT_SPECS)[number]['name'];

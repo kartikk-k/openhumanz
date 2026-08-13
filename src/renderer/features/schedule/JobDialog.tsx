@@ -19,7 +19,7 @@
  * form stays usable and says so, rather than locking the save button behind a
  * channel that is never going to answer.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertTriangle,
   CalendarCheck,
@@ -39,7 +39,7 @@ import {
   type ScheduledJobKind,
 } from '../../../shared/schedule';
 import { cn } from '../../lib/utils';
-import { useMutation, useQuery, type IpcError } from '../../lib/ipc';
+import { call, IpcError, useMutation, useQuery } from '../../lib/ipc';
 import { formatDateTime } from '../../lib/format';
 import {
   Button,
@@ -114,6 +114,7 @@ interface Draft {
   name: string;
   description: string;
   kind: ScheduledJobKind;
+  botId: string;
   prompt: string;
   cron: string;
   timezone: string;
@@ -136,6 +137,7 @@ function emptyDraft(): Draft {
     name: '',
     description: '',
     kind: DEFAULT_SCHEDULED_JOB_KIND,
+    botId: '',
     prompt: '',
     cron: '',
     timezone: hostTimezone(),
@@ -162,6 +164,7 @@ function draftFrom(job: ScheduledJob): Draft {
     name: job.name,
     description: job.description ?? '',
     kind: job.kind,
+    botId: job.botId ?? '',
     prompt: job.prompt,
     cron: job.cron,
     timezone: job.timezone || base.timezone,
@@ -255,6 +258,10 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
   );
   const [debouncedCron, setDebouncedCron] = useState(draft.cron);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [newBotName, setNewBotName] = useState('');
+  const [createBotError, setCreateBotError] = useState<string | null>(null);
+  const [creatingBot, setCreatingBot] = useState(false);
+  const creatingBotRef = useRef(false);
 
   // Re-seed whenever the dialog is opened on a different job.
   useEffect(() => {
@@ -263,6 +270,10 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
     setDraft(next);
     setDebouncedCron(next.cron);
     setSaveError(null);
+    setNewBotName('');
+    setCreateBotError(null);
+    setCreatingBot(false);
+    creatingBotRef.current = false;
   }, [open, job]);
 
   useEffect(() => {
@@ -284,8 +295,54 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
   const update = useMutation(IPC.schedule.update);
   const pending = create.pending || update.pending;
 
+  const bots = useQuery(
+    IPC.bots.list,
+    {},
+    { enabled: open && draft.kind === 'agent' },
+  );
+  const botsUnavailable = Boolean(bots.error?.isUnavailable);
+
   const patch = (next: Partial<Draft>) =>
     setDraft((previous) => ({ ...previous, ...next }));
+
+  const createBot = async () => {
+    const name = newBotName.trim();
+    if (!name || creatingBotRef.current) return;
+    creatingBotRef.current = true;
+    setCreateBotError(null);
+    setCreatingBot(true);
+    try {
+      const created = await call(IPC.bots.create, { name });
+      patch({ botId: created.id });
+      setNewBotName('');
+      bots.setData((previous) => {
+        const list = previous ?? [];
+        if (list.some((bot) => bot.id === created.id)) return list;
+        return [...list, created];
+      });
+    } catch (cause) {
+      const failure = cause instanceof IpcError ? cause : null;
+      setCreateBotError(
+        failure?.isUnavailable
+          ? 'Bots not available yet'
+          : (failure?.message ?? 'Could not create the bot.'),
+      );
+    } finally {
+      creatingBotRef.current = false;
+      setCreatingBot(false);
+    }
+  };
+
+  const botOptions = [
+    { value: '', label: 'None — notify only' },
+    ...(bots.data ?? []).map((bot) => ({
+      value: bot.id,
+      label: bot.name,
+    })),
+  ];
+  if (draft.botId && !(bots.data ?? []).some((bot) => bot.id === draft.botId)) {
+    botOptions.push({ value: draft.botId, label: draft.botId });
+  }
 
   const problem = draftProblem(draft);
   const stale = draft.cron.trim() !== trimmedCron;
@@ -314,6 +371,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
       enabled: draft.enabled,
       condition,
       kind: draft.kind,
+      botId: draft.botId || undefined,
       prompt: draft.prompt.trim(),
       engine: draft.engine.trim() || undefined,
       allowedTools: parseList(draft.allowedTools),
@@ -323,7 +381,7 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
     };
 
     const saved = job
-      ? await update.mutate({ id: job.id, ...shared })
+      ? await update.mutate({ id: job.id, ...shared, botId: draft.botId })
       : await create.mutate(shared);
 
     if (!saved) {
@@ -512,6 +570,52 @@ export function JobDialog({ open, job, onClose, onSaved }: JobDialogProps) {
               hint="Shown as the notification body. No engine runs."
               onChange={(event) => patch({ prompt: event.target.value })}
             />
+          )}
+
+          {draft.kind === 'agent' && botsUnavailable && (
+            <p className={cn('text-[12px] leading-relaxed', textMuted)}>
+              Bots not available yet
+            </p>
+          )}
+          {draft.kind === 'agent' && !botsUnavailable && (
+            <Field
+              label="Post results to"
+              hint="The fired run streams into this bot's thread. None just notifies you."
+              error={createBotError}
+            >
+              <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,11rem)_auto] items-end gap-2">
+                <Select
+                  value={draft.botId}
+                  options={botOptions}
+                  onChange={(event) => patch({ botId: event.target.value })}
+                />
+                <Input
+                  value={newBotName}
+                  placeholder="New bot"
+                  aria-label="New bot"
+                  onChange={(event) => {
+                    setNewBotName(event.target.value);
+                    if (createBotError) setCreateBotError(null);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      void createBot();
+                    }
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  disabled={!newBotName.trim() || creatingBot}
+                  loading={creatingBot}
+                  onClick={() => {
+                    void createBot();
+                  }}
+                >
+                  Create
+                </Button>
+              </div>
+            </Field>
           )}
         </section>
 

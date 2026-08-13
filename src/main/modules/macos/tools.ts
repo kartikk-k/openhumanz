@@ -14,8 +14,10 @@
  *    scripts. Three layers, because the cost of being wrong once is unbounded.
  *  - **No generic shell and no arbitrary-AppleScript tool.** Both are remote
  *    code execution with a friendly schema. See `shell-guard.ts`.
- *  - **No delete, no trash, no empty trash, no mark-complete.** Nothing here is
- *    irreversible from the user's own UI.
+ *  - **No empty-trash tool and no hard delete.** File tools exist; `file_delete`
+ *    moves to Trash via Finder so the user can restore. There is no tool that
+ *    empties the Trash or unlinks a path.
+ *  - **No mark-complete, no note overwrite.** Reminders and notes stay additive.
  *
  * `send_notification` is the one deliberate exception to the "no agent-callable
  * side channel" instinct: by product decision the agent must be able to alert
@@ -263,6 +265,47 @@ type RemindersCreateInputType = z.infer<typeof RemindersCreateInput>;
 const FilesSelectionInput = z.object({
   limit: z.number().int().positive().max(200).default(50),
 });
+
+const FilePathInput = z
+  .string()
+  .min(1)
+  .max(4096)
+  .describe('Absolute path, or ~/... from the home folder.');
+
+const FileCreateInput = z.object({
+  path: FilePathInput,
+  content: z
+    .string()
+    .max(1_000_000)
+    .default('')
+    .describe('File contents. Omit to create an empty file.'),
+});
+type FileCreateInputType = z.infer<typeof FileCreateInput>;
+
+const FileReadInput = z.object({
+  path: FilePathInput,
+  maxChars: z.number().int().positive().max(200_000).default(20_000),
+});
+
+const FileMoveInput = z.object({
+  from: FilePathInput,
+  to: FilePathInput,
+});
+type FileMoveInputType = z.infer<typeof FileMoveInput>;
+
+const FileDeleteInput = z.object({
+  path: FilePathInput,
+});
+type FileDeleteInputType = z.infer<typeof FileDeleteInput>;
+
+const FileListInput = z.object({
+  dir: FilePathInput,
+});
+
+const FileMakeFolderInput = z.object({
+  path: FilePathInput,
+});
+type FileMakeFolderInputType = z.infer<typeof FileMakeFolderInput>;
 
 const CapabilitiesInput = z.object({
   refresh: z
@@ -952,6 +995,119 @@ export function createMacosTools(deps: ToolDeps): AnyToolDefinition[] {
       ),
   });
 
+  const fileCreate = defineTool<FileCreateInputType>({
+    name: 'file_create',
+    description:
+      'Create a file, making parent folders if needed. Overwrites an existing file at the same path. For a folder, use file_make_folder.',
+    inputSchema: FileCreateInput,
+    sideEffecting: true,
+    annotations: { title: 'Create a file' },
+    summarize: (input) => `Create file ${input.path}.`,
+    handler: (input, ctx) =>
+      withCapability(deps, 'files', 'files.create', ctx, async (ops, opCtx) => {
+        const result = await ops.create(
+          { path: input.path, content: input.content },
+          opCtx,
+        );
+        return { ok: true as const, path: result.path };
+      }),
+  });
+
+  const fileRead = defineTool<z.infer<typeof FileReadInput>>({
+    name: 'file_read',
+    description:
+      'Read a text file. Long files are truncated; check the truncated flag and raise maxChars to see more.',
+    inputSchema: FileReadInput,
+    sideEffecting: false,
+    annotations: { title: 'Read a file', readOnlyHint: true },
+    handler: (input, ctx) =>
+      withCapability(deps, 'files', 'files.read', ctx, async (ops, opCtx) => {
+        const result = await ops.read(
+          { path: input.path, maxChars: input.maxChars },
+          opCtx,
+        );
+        return {
+          ok: true as const,
+          path: result.path,
+          content: result.content,
+          truncated: result.truncated,
+          chars: result.chars,
+        };
+      }),
+  });
+
+  const fileMove = defineTool<FileMoveInputType>({
+    name: 'file_move',
+    description:
+      'Move or rename a file or folder. Creates the destination parent folders if needed.',
+    inputSchema: FileMoveInput,
+    sideEffecting: true,
+    annotations: { title: 'Move a file' },
+    summarize: (input) => `Move ${input.from} to ${input.to}.`,
+    handler: (input, ctx) =>
+      withCapability(deps, 'files', 'files.move', ctx, async (ops, opCtx) => {
+        const result = await ops.move(
+          { from: input.from, to: input.to },
+          opCtx,
+        );
+        return { ok: true as const, from: result.from, to: result.to };
+      }),
+  });
+
+  const fileDelete = defineTool<FileDeleteInputType>({
+    name: 'file_delete',
+    description:
+      'Move a file or folder to the Trash. It is not permanently deleted — the user can restore it from Trash. There is no tool that empties the Trash.',
+    inputSchema: FileDeleteInput,
+    sideEffecting: true,
+    annotations: { title: 'Move to Trash', destructiveHint: true },
+    summarize: (input) => `Move ${input.path} to Trash.`,
+    handler: (input, ctx) =>
+      withCapability(deps, 'files', 'files.trash', ctx, async (ops, opCtx) => {
+        const result = await ops.trash({ path: input.path }, opCtx);
+        return { ok: true as const, path: result.path };
+      }),
+  });
+
+  const fileList = defineTool<z.infer<typeof FileListInput>>({
+    name: 'file_list',
+    description:
+      'List the files and folders in a directory. Capped at 200 entries; check truncated if you need to look further.',
+    inputSchema: FileListInput,
+    sideEffecting: false,
+    annotations: { title: 'List a folder', readOnlyHint: true },
+    handler: (input, ctx) =>
+      withCapability(deps, 'files', 'files.list', ctx, async (ops, opCtx) => {
+        const result = await ops.list({ dir: input.dir }, opCtx);
+        return {
+          ok: true as const,
+          dir: result.dir,
+          entries: result.entries,
+          truncated: result.truncated,
+        };
+      }),
+  });
+
+  const fileMakeFolder = defineTool<FileMakeFolderInputType>({
+    name: 'file_make_folder',
+    description: 'Create a folder, including any missing parent folders.',
+    inputSchema: FileMakeFolderInput,
+    sideEffecting: true,
+    annotations: { title: 'Create a folder' },
+    summarize: (input) => `Create folder ${input.path}.`,
+    handler: (input, ctx) =>
+      withCapability(
+        deps,
+        'files',
+        'files.make-folder',
+        ctx,
+        async (ops, opCtx) => {
+          const result = await ops.makeFolder({ path: input.path }, opCtx);
+          return { ok: true as const, path: result.path };
+        },
+      ),
+  });
+
   return [
     capabilities,
     mailMailboxes,
@@ -973,6 +1129,12 @@ export function createMacosTools(deps: ToolDeps): AnyToolDefinition[] {
     remindersCreate,
     sendNotification,
     filesSelection,
+    fileCreate,
+    fileRead,
+    fileMove,
+    fileDelete,
+    fileList,
+    fileMakeFolder,
   ];
 }
 
@@ -998,6 +1160,12 @@ export const MACOS_TOOL_NAMES = [
   'reminders_create',
   'send_notification',
   'files_finder_selection',
+  'file_create',
+  'file_read',
+  'file_move',
+  'file_delete',
+  'file_list',
+  'file_make_folder',
 ] as const;
 
 /** The ones that change something. Everything else must be read-only. */
@@ -1006,4 +1174,8 @@ export const MACOS_SIDE_EFFECTING_TOOLS = [
   'calendar_create_event',
   'notes_create',
   'reminders_create',
+  'file_create',
+  'file_move',
+  'file_delete',
+  'file_make_folder',
 ] as const;

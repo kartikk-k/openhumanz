@@ -575,6 +575,7 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
       condition_json: condition,
       missed_run_policy: policy,
       kind,
+      bot_id: parsed.botId,
       prompt: parsed.prompt ?? '',
       engine: parsed.engine,
       allowed_tools_json: parsed.allowedTools ?? [],
@@ -595,7 +596,12 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
 
   const update = async (input: ScheduledJobUpdate): Promise<ScheduledJob> => {
     const jobs = requireStore();
-    const parsed = ScheduledJobUpdateSchema.parse(input);
+    // Empty string is how a caller clears the destination; IdSchema rejects it,
+    // so lift it off before parse and write it through the column encoder.
+    const rawBotId = (input as { botId?: unknown }).botId;
+    const parsed = ScheduledJobUpdateSchema.parse(
+      rawBotId === '' ? { ...input, botId: undefined } : input,
+    );
     const existing = jobs.getJob(parsed.id);
     if (!existing) throw new Error(`No scheduled job with id "${parsed.id}"`);
 
@@ -621,6 +627,8 @@ export function createScheduler(options: SchedulerOptions = {}): Scheduler {
     if (parsed.allowedTools !== undefined) {
       patch.allowed_tools_json = parsed.allowedTools;
     }
+    if (parsed.botId !== undefined) patch.bot_id = parsed.botId;
+    else if (rawBotId === '') patch.bot_id = '';
     if (parsed.maxTurns !== undefined) patch.max_turns = parsed.maxTurns;
     if (parsed.maxCostUsd !== undefined) patch.max_cost_usd = parsed.maxCostUsd;
 

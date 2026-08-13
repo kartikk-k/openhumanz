@@ -153,6 +153,12 @@ export interface SelectedFile {
   name: string;
 }
 
+export interface FileListEntry {
+  name: string;
+  path: string;
+  kind: 'file' | 'dir';
+}
+
 /* ------------------------------------------------------------------ */
 /* Operations                                                          */
 /* ------------------------------------------------------------------ */
@@ -302,6 +308,33 @@ export interface FilesOps {
     input: { limit: number },
     ctx: OpContext,
   ): Promise<{ selection: SelectedFile[]; frontWindowPath: string }>;
+  create(
+    input: { path: string; content: string },
+    ctx: OpContext,
+  ): Promise<{ path: string }>;
+  read(
+    input: { path: string; maxChars: number },
+    ctx: OpContext,
+  ): Promise<{
+    path: string;
+    content: string;
+    truncated: boolean;
+    chars: number;
+  }>;
+  move(
+    input: { from: string; to: string },
+    ctx: OpContext,
+  ): Promise<{ from: string; to: string }>;
+  /** Move a path to the Trash. Finder's `delete`; never unlinks. */
+  trash(input: { path: string }, ctx: OpContext): Promise<{ path: string }>;
+  list(
+    input: { dir: string },
+    ctx: OpContext,
+  ): Promise<{ dir: string; entries: FileListEntry[]; truncated: boolean }>;
+  makeFolder(
+    input: { path: string },
+    ctx: OpContext,
+  ): Promise<{ path: string }>;
 }
 
 /** Capability id -> the interface it promises. The registry is keyed by this. */

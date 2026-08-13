@@ -4,10 +4,9 @@
 --   1  limit, default 50
 --
 -- Read-only and non-launching: Finder is always running, so this cannot start
--- an app behind the user's back. Deliberately the only Finder capability on the
--- surface -- reveal, move, trash and rename are all either side-effecting or
--- irreversible, and Claude Code's native filesystem tools already do the
--- reversible parts better and under their own gate.
+-- an app behind the user's back. The other Finder verb on this surface is
+-- trash (`finder-trash`); empty-trash is deliberately absent. Text I/O uses
+-- Node fs, not AppleScript.
 
 on run argv
 	set lim to my argInt(argv, 1, 50)

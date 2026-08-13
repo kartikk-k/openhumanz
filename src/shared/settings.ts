@@ -63,6 +63,17 @@ export const UiSettingsSchema = z.object({
 });
 export type UiSettings = z.infer<typeof UiSettingsSchema>;
 
+export const BotsSettingsSchema = z.object({
+  /**
+   * Minutes of inactivity after which a bot is considered "asleep" (a dim
+   * status in the roster). A sleeping bot is woken automatically before any
+   * incoming message — user, bot-to-bot, or scheduled — is delivered, so a
+   * send never fails on account of sleep.
+   */
+  sleepAfterMinutes: z.number().int().positive().max(1440).default(5),
+});
+export type BotsSettings = z.infer<typeof BotsSettingsSchema>;
+
 export const NotificationSettingsSchema = z.object({
   enabled: z.boolean().default(true),
   onApprovalRequired: z.boolean().default(true),
@@ -147,6 +158,7 @@ export const SettingsSchema = z.object({
   composio: ComposioSettingsSchema.prefault({}),
   supermemory: SupermemorySettingsSchema.prefault({}),
   voice: VoiceSettingsSchema.prefault({}),
+  bots: BotsSettingsSchema.prefault({}),
 });
 export type Settings = z.infer<typeof SettingsSchema>;
 /** The shape you may hand to `SettingsSchema.parse` — everything optional. */
@@ -176,6 +188,7 @@ export const SettingsPatchSchema = z.object({
   composio: patchSchema(ComposioSettingsSchema).optional(),
   supermemory: patchSchema(SupermemorySettingsSchema).optional(),
   voice: patchSchema(VoiceSettingsSchema).optional(),
+  bots: patchSchema(BotsSettingsSchema).optional(),
 });
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>;
 

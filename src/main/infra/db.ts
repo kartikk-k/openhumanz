@@ -337,6 +337,63 @@ function normalizeValue(value: SqlParam): SqlValue {
   return value;
 }
 
+/**
+ * Count positional `?` placeholders in a SQL string, ignoring `?` that appear
+ * inside string/char literals or comments. Named params (`:x`, `?NNN`) are not
+ * counted here — the guard only fires for the plain-`?` array-binding path.
+ */
+function countPositionalPlaceholders(sql: string): number {
+  let count = 0;
+  let i = 0;
+  const n = sql.length;
+  while (i < n) {
+    const ch = sql[i];
+    if (ch === "'" || ch === '"') {
+      // Skip a string literal, handling '' / "" escapes.
+      const quote = ch;
+      i += 1;
+      while (i < n) {
+        if (sql[i] === quote) {
+          if (sql[i + 1] === quote) i += 2;
+          else break;
+        } else i += 1;
+      }
+      i += 1;
+    } else if (ch === '-' && sql[i + 1] === '-') {
+      while (i < n && sql[i] !== '\n') i += 1;
+    } else if (ch === '?') {
+      // A bare `?`; `?NNN` numbered params are rare here and would be undercounted,
+      // which only means the guard is lenient (never a false positive).
+      if (!/[0-9]/.test(sql[i + 1] ?? '')) count += 1;
+      i += 1;
+    } else {
+      i += 1;
+    }
+  }
+  return count;
+}
+
+/**
+ * sql.js binds each element of a values array to positional index i+1 with NO
+ * bounds check, so an array LONGER than the statement's `?` count makes SQLite
+ * raise the opaque "table index is out of bounds" and crashes the caller. Catch
+ * that class here with a clear, actionable message naming the SQL and the
+ * counts, instead of a cryptic wasm error surfacing three layers up in the UI.
+ */
+function assertParamCount(sql: string, params: SqlParams | undefined): void {
+  if (!Array.isArray(params)) return;
+  const expected = countPositionalPlaceholders(sql);
+  if (params.length > expected) {
+    throw new Error(
+      `SQL parameter mismatch: statement declares ${expected} placeholder(s) ` +
+        `but ${params.length} value(s) were supplied. SQL: ${sql
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 200)}`,
+    );
+  }
+}
+
 function normalizeParams(
   params: SqlParams | undefined,
 ): SqlValue[] | Record<string, SqlValue> | null {
@@ -548,6 +605,7 @@ export async function openDatabase(options: DbOptions): Promise<Db> {
     raw: () => handle,
 
     run(sql, params) {
+      assertParamCount(sql, params);
       const { statement, cached } = acquire(sql);
       try {
         statement.run(normalizeParams(params));
@@ -562,6 +620,7 @@ export async function openDatabase(options: DbOptions): Promise<Db> {
     },
 
     all<T extends Row = Row>(sql: string, params?: SqlParams): T[] {
+      assertParamCount(sql, params);
       const { statement, cached } = acquire(sql);
       const rows: T[] = [];
       try {
@@ -576,6 +635,7 @@ export async function openDatabase(options: DbOptions): Promise<Db> {
     },
 
     get<T extends Row = Row>(sql: string, params?: SqlParams): T | undefined {
+      assertParamCount(sql, params);
       const { statement, cached } = acquire(sql);
       try {
         statement.bind(normalizeParams(params));
@@ -590,6 +650,7 @@ export async function openDatabase(options: DbOptions): Promise<Db> {
       sql: string,
       params?: SqlParams,
     ): T | undefined {
+      assertParamCount(sql, params);
       const { statement, cached } = acquire(sql);
       try {
         statement.bind(normalizeParams(params));

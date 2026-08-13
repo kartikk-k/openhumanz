@@ -7,6 +7,7 @@ import {
 import { ROUTES } from './routes';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/shared/ErrorBoundary';
+import { BotsScreen } from './features/bots/BotsScreen';
 import { ChatScreen } from './features/chat/ChatScreen';
 import { RunsScreen } from './features/runs/RunsScreen';
 import { TasksScreen } from './features/tasks/TasksScreen';
@@ -46,7 +47,8 @@ export default function App() {
 
           <Route element={<AppShell />}>
             <Route path="/" element={<Navigate to={ROUTES.chat} replace />} />
-            <Route path={`${ROUTES.chat}/*`} element={<ChatScreen />} />
+            <Route path={`${ROUTES.chat}/*`} element={<BotsScreen />} />
+            <Route path={`${ROUTES.sessions}/*`} element={<ChatScreen />} />
             <Route path={`${ROUTES.runs}/*`} element={<RunsScreen />} />
             <Route path={`${ROUTES.tasks}/*`} element={<TasksScreen />} />
             <Route path={`${ROUTES.schedule}/*`} element={<ScheduleScreen />} />

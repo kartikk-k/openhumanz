@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 import { IPC_PUSH } from '../../shared/ipc';
 import { subscribe } from '../lib/ipc';
 import { useApprovalsStore } from './approvalsStore';
+import { useBotsStore } from './botsStore';
 import { useChatStore } from './chatStore';
 import { useEnvironmentStore } from './environmentStore';
 import { useOnboardingStore } from './onboardingStore';
@@ -28,6 +29,7 @@ export async function loadInitialState(): Promise<void> {
     useOnboardingStore.getState().load(),
     useApprovalsStore.getState().load(),
     useRunsStore.getState().loadRuns({ limit: 50 }),
+    useBotsStore.getState().loadRoster(),
   ]);
 }
 
@@ -74,6 +76,10 @@ export function connectPushChannels(): () => void {
 
     subscribe(IPC_PUSH.chatStream, (payload) => {
       useChatStore.getState().applyStreamEvent(payload);
+    }),
+
+    subscribe(IPC_PUSH.botThread, (payload) => {
+      useBotsStore.getState().applyThreadPush(payload);
     }),
   ];
 

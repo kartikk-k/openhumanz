@@ -71,6 +71,16 @@ import type {
   Settings,
   SettingsPatch,
 } from './settings';
+import type {
+  BotCreateInput,
+  BotMarkReadRequestInput,
+  BotMessage,
+  BotMessagesQueryInput,
+  BotSendRequestInput,
+  BotSendResult,
+  BotUpdateInput,
+  BotWithUnread,
+} from './bots';
 
 /* ------------------------------------------------------------------ */
 /* Channel names                                                       */
@@ -168,6 +178,16 @@ export const IPC = {
     listToolkits: 'composio:list-toolkits',
     toolsFor: 'composio:tools-for',
   },
+  bots: {
+    list: 'bots:list',
+    get: 'bots:get',
+    messages: 'bots:messages',
+    create: 'bots:create',
+    update: 'bots:update',
+    archive: 'bots:archive',
+    send: 'bots:send',
+    markRead: 'bots:mark-read',
+  },
   // `satisfies` makes drift between this map and IpcContract a compile error.
 } as const satisfies Record<string, Record<string, IpcChannel>>;
 
@@ -187,6 +207,7 @@ export const IPC_PUSH = {
   environmentChanged: 'push:environment-changed',
   chatUpdated: 'push:chat-updated',
   chatStream: 'push:chat-stream',
+  botThread: 'push:bot-thread',
 } as const satisfies Record<string, IpcPushChannel>;
 
 /* ------------------------------------------------------------------ */
@@ -382,6 +403,29 @@ export interface IpcContract {
   'composio:tools-for': {
     request: { toolkitSlug: string };
     response: ComposioToolInfo[];
+  };
+
+  /* bots ---------------------------------------------------------- */
+  /** The roster, each bot with its live unread count. */
+  'bots:list': {
+    request: { includeArchived?: boolean };
+    response: BotWithUnread[];
+  };
+  'bots:get': { request: ByIdRequest; response: BotWithUnread | null };
+  /** A bot's thread, oldest-first. Blocks are the folded chat render model. */
+  'bots:messages': {
+    request: BotMessagesQueryInput;
+    response: { botId: string; messages: BotMessage[] };
+  };
+  'bots:create': { request: BotCreateInput; response: BotWithUnread };
+  'bots:update': { request: BotUpdateInput; response: BotWithUnread };
+  /** Soft-delete (archive). The Main bot cannot be archived. */
+  'bots:archive': { request: ByIdRequest; response: Deleted };
+  /** Send a prompt to a bot: append the user message, kick the thread runner. */
+  'bots:send': { request: BotSendRequestInput; response: BotSendResult };
+  'bots:mark-read': {
+    request: BotMarkReadRequestInput;
+    response: { botId: string; unread: number };
   };
 }
 
@@ -598,6 +642,12 @@ export interface IpcPushContract {
   };
   /** A live event from the running chat turn, for token-level streaming. */
   'push:chat-stream': { sessionId: string | null; event: ChatStreamEvent };
+  /**
+   * A bot's thread changed — a message appended, a streaming bot message grew,
+   * or its unread moved. The renderer re-reads `bots:messages` (and, when
+   * `rosterChanged`, `bots:list`) for the affected bot.
+   */
+  'push:bot-thread': { botId: string; rosterChanged?: boolean };
 }
 
 export type IpcPushChannel = keyof IpcPushContract;

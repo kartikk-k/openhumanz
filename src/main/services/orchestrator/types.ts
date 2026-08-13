@@ -190,6 +190,13 @@ export interface McpStepScopeRequest {
    */
   allowedTools: string[];
   cwd: string;
+  /**
+   * A human is watching this run live (a bot thread), so a pending approval
+   * should hold the call open and continue in place once they decide, rather
+   * than dead-ending non-interactively. Defaults to false for fire-and-forget
+   * runs.
+   */
+  interactive?: boolean;
   /** Aborted on cancel; long-running tools should honour it. */
   signal?: AbortSignal;
   /**

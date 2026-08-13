@@ -310,3 +310,14 @@ export const FinderSelectionSchema = z.object({
   frontWindowPath: OptionalText,
 });
 export type FinderSelection = z.infer<typeof FinderSelectionSchema>;
+
+/**
+ * `ok` is a literal `true`. Finder's `delete` is Trash; if a future edit ever
+ * reported a hard unlink this schema would still only accept a successful
+ * trash move.
+ */
+export const FinderTrashSchema = z.object({
+  ok: z.literal(true),
+  path: OptionalText,
+});
+export type FinderTrash = z.infer<typeof FinderTrashSchema>;

@@ -158,6 +158,12 @@ export const CAPABILITY_OPS = [
   'reminders.reminder',
   'reminders.create',
   'files.finder-selection',
+  'files.create',
+  'files.read',
+  'files.move',
+  'files.trash',
+  'files.list',
+  'files.make-folder',
 ] as const;
 
 export type CapabilityOp = (typeof CAPABILITY_OPS)[number];
@@ -224,6 +230,16 @@ export const SUPPORT_MATRIX: Record<CapabilityOp, OpSupport> = {
   'reminders.reminder': { minMajor: 11, lastVerifiedMajor: 15 },
   'reminders.create': { minMajor: 11, lastVerifiedMajor: 15 },
   'files.finder-selection': { minMajor: 11, lastVerifiedMajor: 15 },
+  'files.create': { minMajor: 11, lastVerifiedMajor: 15 },
+  'files.read': { minMajor: 11, lastVerifiedMajor: 15 },
+  'files.move': { minMajor: 11, lastVerifiedMajor: 15 },
+  'files.trash': {
+    minMajor: 11,
+    lastVerifiedMajor: 15,
+    caveat: 'Moves the path to Trash; it does not empty the Trash or unlink.',
+  },
+  'files.list': { minMajor: 11, lastVerifiedMajor: 15 },
+  'files.make-folder': { minMajor: 11, lastVerifiedMajor: 15 },
 };
 
 export interface OpVerdict {

@@ -126,6 +126,12 @@ export const ScheduledJobSchema = z.object({
    */
   kind: ScheduledJobKindSchema.default(DEFAULT_SCHEDULED_JOB_KIND),
   /**
+   * When set on an `agent` job, the fired run streams into this bot's thread
+   * instead of a bare notification-only completion. Scheduling stays its own
+   * primitive; this is only the destination for the result.
+   */
+  botId: IdSchema.optional(),
+  /**
    * For `agent` jobs: the prompt handed to the engine when the job fires.
    * For `reminder` jobs: optional notification body (the title is the job name).
    * Required only for `agent` kind — enforced by the refinement below.
@@ -186,6 +192,7 @@ export const ScheduledJobCreateSchema = ScheduledJobSchema.omit({
     recurring: true,
     condition: true,
     kind: true,
+    botId: true,
     prompt: true,
     allowedTools: true,
     metadata: true,

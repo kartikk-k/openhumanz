@@ -44,6 +44,7 @@ import {
   EngineSettingsSchema,
   LoggingSettingsSchema,
   ScheduleSettingsSchema,
+  BotsSettingsSchema,
   SettingsSchema,
   UiSettingsSchema,
   VoiceSettingsSchema,
@@ -755,6 +756,31 @@ export function SettingsScreen() {
               disabled={disabled}
               onCommit={(value) =>
                 save({ schedule: { tickMs: value } }, 'Scheduler tick')
+              }
+            />
+          </FieldGrid>
+        </SettingsSection>
+
+        {/* ---------------------------------------------------------- */}
+        <SettingsSection
+          id="bots"
+          title="Bots"
+          description="Named agents with their own threads. A bot goes to sleep after a spell of inactivity and is woken automatically the moment a message arrives — from you, another bot, or a scheduled job."
+        >
+          <FieldGrid>
+            <NumberSetting
+              id="bots-sleep-after"
+              label="Sleep after"
+              unit={{ label: 'minutes', factor: 1 }}
+              hint="Idle time before a bot shows as asleep in the roster. Waking is automatic on the next message, so a send never fails."
+              value={settings.bots.sleepAfterMinutes}
+              schema={BotsSettingsSchema.shape.sleepAfterMinutes}
+              invalidMessage="Enter a positive number of minutes."
+              min={1}
+              step={1}
+              disabled={disabled}
+              onCommit={(value) =>
+                save({ bots: { sleepAfterMinutes: value } }, 'Bots')
               }
             />
           </FieldGrid>

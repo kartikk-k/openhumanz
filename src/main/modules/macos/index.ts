@@ -22,8 +22,8 @@
  *  - `version.ts`     what each operation is prepared to run on, so a broken
  *                     release falls through instead of returning wrong data.
  *  - `providers/`     capability resolution, once, generically.
- *  - `tools.ts`       the MCP surface. Read-only first; every write is
- *                     `sideEffecting` and mail composition drafts, never sends.
+ *  - `tools.ts`       the MCP surface. Writes are `sideEffecting`; mail
+ *                     composition drafts and never sends; file delete is Trash.
  *
  * **On anything that is not macOS this module loads, starts, registers its tools
  * and reports every capability unavailable with a reason.** It does not throw
@@ -69,6 +69,7 @@ import { createAppleContactsProvider } from './providers/apple-contacts';
 import { createAppleNotesProvider } from './providers/apple-notes';
 import { createAppleRemindersProvider } from './providers/apple-reminders';
 import { createAppleFinderProvider } from './providers/apple-finder';
+import { createNodeFilesProvider } from './providers/node-files';
 
 export const MACOS_MODULE_ID = 'macos';
 
@@ -220,6 +221,11 @@ export function createMacosModule(
   capabilities.register(createAppleNotesProvider(deps));
   capabilities.register(createAppleRemindersProvider(deps));
   capabilities.register(createAppleFinderProvider(deps));
+  capabilities.register(
+    createNodeFilesProvider({
+      version: () => version,
+    }),
+  );
 
   const environment = async (force = false): Promise<MacosEnvironment> => {
     if (force) capabilities.invalidate();

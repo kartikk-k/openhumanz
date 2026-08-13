@@ -12,6 +12,7 @@
 import {
   Activity,
   CalendarClock,
+  History,
   LayoutDashboard,
   LayoutGrid,
   Library,
@@ -24,6 +25,7 @@ import {
 
 export const ROUTES = {
   chat: '/chat',
+  sessions: '/sessions',
   runs: '/runs',
   tasks: '/tasks',
   schedule: '/schedule',
@@ -71,7 +73,14 @@ export const NAV_ITEMS: readonly NavItem[] = [
     path: ROUTES.chat,
     label: 'Chat',
     icon: MessageSquare,
-    description: 'Talk to the assistant directly and ask it to do things.',
+    description: 'Named agents, each with a persistent thread.',
+  },
+  {
+    key: 'sessions',
+    path: ROUTES.sessions,
+    label: 'Sessions',
+    icon: History,
+    description: 'Ad-hoc Claude Code chats.',
   },
   {
     key: 'runs',

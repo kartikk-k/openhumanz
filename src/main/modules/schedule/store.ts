@@ -115,6 +115,15 @@ export const migrations: Migration[] = [
          ADD COLUMN kind TEXT NOT NULL DEFAULT 'agent';`,
     ],
   },
+  {
+    id: '004_bot_id',
+    description:
+      'optional bot destination: agent jobs can stream their result into a bot thread',
+    up: [
+      // Nullable so existing jobs stay notify-only. Reminder jobs ignore this.
+      `ALTER TABLE schedule_jobs ADD COLUMN bot_id TEXT;`,
+    ],
+  },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -133,6 +142,7 @@ interface JobRow {
   condition_json: string;
   missed_run_policy: string;
   kind: string;
+  bot_id: string | null;
   prompt: string;
   engine: string | null;
   allowed_tools_json: string;
@@ -202,6 +212,7 @@ export function rowToJob(row: JobRow): ScheduledJob {
     // Absent (pre-003 rows read through an older path) → 'agent', matching the
     // migration default: everything before the split was an agent job.
     kind: row.kind ?? 'agent',
+    botId: row.bot_id ?? undefined,
     prompt: row.prompt,
     engine: row.engine ?? undefined,
     allowedTools: parseJson<string[]>(row.allowed_tools_json, []),
@@ -270,6 +281,8 @@ const COLUMNS = {
   condition_json: (v: unknown) => JSON.stringify(v ?? { kind: 'always' }),
   missed_run_policy: (v: unknown) => String(v ?? DEFAULT_MISSED_RUN_POLICY),
   kind: (v: unknown) => String(v ?? DEFAULT_SCHEDULED_JOB_KIND),
+  bot_id: (v: unknown) =>
+    v === undefined || v === null || v === '' ? null : String(v),
   prompt: (v: unknown) => String(v ?? ''),
   engine: (v: unknown) => (v === undefined || v === null ? null : String(v)),
   allowed_tools_json: (v: unknown) => JSON.stringify(v ?? []),
@@ -296,7 +309,7 @@ type Column = keyof typeof COLUMNS;
 export type JobPatch = Partial<Record<Column, unknown>>;
 
 const SELECT_JOB = `SELECT id, name, description, cron, timezone, human_readable,
-    enabled, recurring, condition_json, missed_run_policy, kind, prompt, engine,
+    enabled, recurring, condition_json, missed_run_policy, kind, bot_id, prompt, engine,
     allowed_tools_json, max_turns, max_cost_usd, next_run_at, last_run_at,
     last_run_id, last_status, last_skip_reason, created_at, updated_at,
     metadata_json
