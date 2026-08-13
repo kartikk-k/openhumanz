@@ -236,6 +236,61 @@ function BlockBody({ block }: { block: Block }): ReactNode {
         </blockquote>
       );
 
+    case 'table': {
+      const ALIGN_CLASS = {
+        center: 'text-center',
+        right: 'text-right',
+        left: 'text-left',
+      } as const;
+      const alignClass = (a: (typeof block.align)[number]): string =>
+        a ? ALIGN_CLASS[a] : 'text-left';
+      return (
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-[13px]">
+            <thead>
+              <tr className="border-b border-zinc-300 dark:border-zinc-700">
+                {block.header.map((cell, col) => (
+                  <th
+                    // Cells are positional; the table is re-parsed whole on change.
+                    // eslint-disable-next-line react/no-array-index-key
+                    key={col}
+                    className={cn(
+                      'px-2.5 py-1.5 font-semibold text-zinc-900 dark:text-zinc-100',
+                      alignClass(block.align[col] ?? null),
+                    )}
+                  >
+                    <InlineNodes nodes={cell} />
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {block.rows.map((row, rowIndex) => (
+                <tr
+                  // eslint-disable-next-line react/no-array-index-key
+                  key={rowIndex}
+                  className="border-b border-zinc-200/70 last:border-0 dark:border-zinc-800/70"
+                >
+                  {row.map((cell, col) => (
+                    <td
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={col}
+                      className={cn(
+                        'px-2.5 py-1.5 align-top',
+                        alignClass(block.align[col] ?? null),
+                      )}
+                    >
+                      <InlineNodes nodes={cell} />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
     case 'rule':
       return <hr className="border-zinc-200 dark:border-zinc-800" />;
 

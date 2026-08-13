@@ -52,6 +52,10 @@ export const MAX_INLINE_DEPTH = 4;
 export const MAX_QUOTE_DEPTH = 3;
 /** Stop parsing after this many blocks and say so. */
 export const MAX_BLOCKS = 4000;
+/** Body rows past this in one table are dropped — a table is not a database. */
+export const MAX_TABLE_ROWS = 200;
+/** Columns past this are dropped; nobody reads a 30-wide table in a chat bubble. */
+export const MAX_TABLE_COLS = 30;
 /** Stop parsing after this many lines and say so. */
 export const MAX_LINES = 20000;
 /** Above this, the preview offers raw text first. */
@@ -111,6 +115,15 @@ export type Block = Span &
         unterminated: boolean;
       }
     | { kind: 'quote'; blocks: Block[] }
+    | {
+        kind: 'table';
+        /** Header cells, left to right. */
+        header: InlineNode[][];
+        /** Body rows; each row is an array of cells. */
+        rows: InlineNode[][][];
+        /** Per-column alignment from the delimiter row; `null` is unset. */
+        align: Array<'left' | 'center' | 'right' | null>;
+      }
     | { kind: 'rule' }
     | { kind: 'truncated'; reason: string }
   );
@@ -438,6 +451,27 @@ const BULLET_RE = /^(\s*)([-*+])\s+(.*)$/;
 const ORDERED_RE = /^(\s*)(\d{1,9})[.)]\s+(.*)$/;
 const QUOTE_RE = /^ {0,3}>\s?(.*)$/;
 const TASK_RE = /^\[([ xX])\]\s+(.*)$/;
+/**
+ * A GFM table's delimiter row: dashes per column, optional alignment colons,
+ * optional leading/trailing pipe. This is the line that turns the preceding
+ * pipe line into a table header — without it, a line with `|` is just prose.
+ */
+const TABLE_DELIM_RE = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+
+/** A candidate header line has to contain a pipe to delimit cells. */
+function looksLikeTableHeader(line: string | undefined): boolean {
+  return line !== undefined && line.includes('|');
+}
+
+/** True when `line` is a table header and `next` is its delimiter row. */
+function isTableStart(line: string, next: string | undefined): boolean {
+  return (
+    looksLikeTableHeader(line) &&
+    next !== undefined &&
+    next.includes('-') &&
+    TABLE_DELIM_RE.test(next)
+  );
+}
 
 function clip(line: string): string {
   return line.length > MAX_LINE_CHARS
@@ -445,7 +479,7 @@ function clip(line: string): string {
     : line;
 }
 
-function isBlockStart(line: string): boolean {
+function isBlockStart(line: string, next?: string): boolean {
   return (
     line.trim() === '' ||
     HEADING_RE.test(line) ||
@@ -453,7 +487,8 @@ function isBlockStart(line: string): boolean {
     RULE_RE.test(line) ||
     BULLET_RE.test(line) ||
     ORDERED_RE.test(line) ||
-    QUOTE_RE.test(line)
+    QUOTE_RE.test(line) ||
+    isTableStart(line, next)
   );
 }
 
@@ -615,6 +650,89 @@ function parseQuote(
   };
 }
 
+/**
+ * Split one table row into raw cell strings on unescaped, non-code pipes.
+ *
+ * A `\|` is a literal pipe, and a pipe inside a `` `code span` `` is data, not
+ * a delimiter — otherwise `` | `a|b` | `` would split into three cells. The
+ * outer pipes of `| a | b |` produce leading/trailing empties, which the caller
+ * trims.
+ */
+function splitTableRow(line: string): string[] {
+  const cells: string[] = [];
+  let cell = '';
+  let inCode = false;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (ch === '\\' && line[i + 1] === '|') {
+      cell += '|';
+      i += 1;
+      continue;
+    }
+    if (ch === '`') inCode = !inCode;
+    if (ch === '|' && !inCode) {
+      cells.push(cell);
+      cell = '';
+      continue;
+    }
+    cell += ch;
+  }
+  cells.push(cell);
+  // Drop the empties a leading/trailing pipe leaves behind.
+  if (cells.length > 1 && cells[0].trim() === '') cells.shift();
+  if (cells.length > 1 && cells[cells.length - 1].trim() === '') cells.pop();
+  return cells.slice(0, MAX_TABLE_COLS).map((c) => c.trim());
+}
+
+/** Alignment of one delimiter cell, from its leading/trailing colons. */
+function cellAlign(spec: string): 'left' | 'center' | 'right' | null {
+  const left = spec.startsWith(':');
+  const right = spec.endsWith(':');
+  if (left && right) return 'center';
+  if (right) return 'right';
+  if (left) return 'left';
+  return null;
+}
+
+/**
+ * A GFM pipe table: a header line, a delimiter line of dashes, then body rows.
+ *
+ * Streaming-safe by construction: without the delimiter line the header is not
+ * a table, so a half-typed table stays a paragraph until the second line lands
+ * — the same graceful degradation the fence and link parsers give.
+ */
+function parseTable(cursor: Cursor, fromPath: string): Block | null {
+  const headerLine = cursor.lines[cursor.at];
+  const delimLine = cursor.lines[cursor.at + 1];
+  if (!isTableStart(headerLine, delimLine)) return null;
+
+  const startLine = lineNo(cursor);
+  const align = splitTableRow(delimLine).map(cellAlign);
+  const header = splitTableRow(headerLine).map((c) =>
+    parseInline(clip(c), fromPath),
+  );
+
+  const rows: InlineNode[][][] = [];
+  let i = cursor.at + 2;
+  while (i < cursor.lines.length && rows.length < MAX_TABLE_ROWS) {
+    const line = cursor.lines[i];
+    // A blank line or a line with no pipe ends the table.
+    if (line.trim() === '' || !line.includes('|')) break;
+    rows.push(splitTableRow(line).map((c) => parseInline(clip(c), fromPath)));
+    i += 1;
+  }
+
+  cursor.at = i;
+  return {
+    kind: 'table',
+    header,
+    rows,
+    align,
+    startLine,
+    endLine: lineNo(cursor, i - 1),
+  };
+}
+
 function parseLines(
   lines: string[],
   offset: number,
@@ -684,11 +802,17 @@ function parseLines(
       continue;
     }
 
+    const table = parseTable(cursor, fromPath);
+    if (table) {
+      blocks.push(table);
+      continue;
+    }
+
     // Paragraph: everything up to a blank line or the start of another block.
     const startLine = lineNo(cursor);
     const paragraph: string[] = [clip(line)];
     let i = cursor.at + 1;
-    while (i < lines.length && !isBlockStart(lines[i])) {
+    while (i < lines.length && !isBlockStart(lines[i], lines[i + 1])) {
       paragraph.push(clip(lines[i]));
       i += 1;
     }
